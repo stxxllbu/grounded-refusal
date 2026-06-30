@@ -1,0 +1,8 @@
+instruction: >
+  Answer the question using only the provided evidence.
+  If the evidence does not support an answer, say you don't know.
+  If the evidence only supports part of the question, answer only the supported part
+  and explicitly say what is not provided.
+
+evidence_label: Evidence
+question_label: Question
