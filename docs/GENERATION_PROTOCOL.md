@@ -31,18 +31,40 @@ Locks everything that must be correct:
 
 Output is a **dry template sentence** (correct but repetitive).
 
-### Layer 2 — LLM paraphrase (optional per row)
+### Layer 2 — LLM paraphrase (required for pilot and full set)
 
-Send Layer-1 `evidence` and `question` to an LLM with a strict system prompt:
+Send Layer-1 **`evidence`, `question`, and `reference_answer` together** to an LLM with a strict system prompt.
 
-- **Allowed:** rephrase wording, sentence structure, question style
-- **Not allowed:** add, remove, or change facts, entities, fields, or numbers
+These three fields are one semantic unit. **Do not** paraphrase only evidence/question while leaving `reference_answer` in the Layer-1 template voice.
 
-`reference_answer` may be paraphrased under the same constraint (same facts, same accept/refuse behavior).
+**Why all three must be paraphrased together**
 
-**Validator (required on pilot, recommended on full set):** after paraphrase, confirm entities, numeric values, and the asked field are unchanged and `answerability` still holds.
+- **Style mismatch:** natural evidence/question with a templated chosen answer teaches odd SFT bias.
+- **DPO shortcut risk:** if chosen stays templated while rejected is fluent, the model can reward hack on style instead of grounding.
 
-Set `metadata.creation_process` to `template_rule` or `template_rule+llm_paraphrase`.
+**LLM constraints**
+
+- **Allowed:** rephrase wording, sentence structure, tone (all three fields consistently)
+- **Not allowed:** add, remove, or change facts, entities, fields, numbers, or accept/refuse behavior
+
+**Validator (required on pilot, recommended on full set):** after paraphrase, confirm entities, numeric values, asked field, and `answerability` behavior are unchanged.
+
+**Runtime**
+
+- **Pilot (50 rows):** API model
+- **Scale (500 rows):** API or local **Ollama** (decide after pilot prompt is stable)
+
+Set `metadata.creation_process` to `template_rule+llm_paraphrase` for rows that went through Layer 2.
+
+**System prompt (outline)**
+
+```
+Rephrase evidence, question, and reference_answer together.
+Keep all facts, entities, numbers, and fields identical.
+Keep the same answer behavior (answer / refuse / partial).
+Do not add or remove information.
+Output JSON: {"evidence": "...", "question": "...", "reference_answer": "..."}
+```
 
 ---
 
@@ -62,11 +84,12 @@ Evidence: {ENTITY} has a {FIELD} of {VALUE}.
 Question: What is the {FIELD} of {ENTITY} according to the evidence?
 ```
 
-**Paraphrase example (Layer 2)** — same facts, same field:
+**Paraphrase example (Layer 2)** — same facts, field, and answer behavior:
 
 ```
 Evidence: Positioned at a surface elevation of 1,897 meters, Lake Tahoe is a prominent geographic feature.
 Question: Can you tell me the specific surface elevation of Lake Tahoe based on the text?
+Reference answer: Based on the text, Lake Tahoe's surface elevation is 1,897 meters.
 ```
 
 Canonical repo example: `ex_0003`.
@@ -117,11 +140,15 @@ Apply on top of the three rules above:
 
 ## `reference_answer` style
 
-| `answerability` | Style |
-|-----------------|-------|
+**Layer 1 (draft):** use consistent template openings below so rules are easy to validate.
+
+| `answerability` | Layer 1 draft style |
+|-----------------|---------------------|
 | `answerable` | `According to the evidence, ...` |
 | `unanswerable` | What evidence lacks + `so I don't know` |
 | `partial` | `The evidence says ... It does not provide ...` |
+
+**Layer 2:** rephrase `reference_answer` together with evidence and question. Wording may change; facts and behavior must not.
 
 For `known_world_conflict` answerable rows, follow evidence; do not correct with world knowledge.
 
@@ -138,16 +165,16 @@ For `known_world_conflict` answerable rows, follow evidence; do not correct with
 **Split:** pilot and full train sets use `split: "train"`. Do not train on `hand_examples.jsonl` (`split: "dev"`).  
 **Version:** `dataset_version: "v1"`.
 
-**Pilot gate:** human + validator review all **50** pilot rows (focus: LLM paraphrase did not drop or alter facts). Fix construction rules before scaling to 500.
+**Pilot gate:** human + validator review all **50** pilot rows (focus: LLM paraphrase did not drop or alter facts across all three text fields). Fix construction rules or paraphrase prompt before scaling to 500.
 
 ---
 
 ## Workflow
 
 1. Align this protocol.
-2. Build **50** pilot QA rows (rules → optional paraphrase → validate).
+2. Build **50** pilot QA rows: Layer 1 rules → Layer 2 API paraphrase (all three text fields) → validate.
 3. Review pilot; adjust rules or paraphrase prompt if needed.
-4. Scale to **500** QA rows (`build_data.py` or equivalent).
+4. Scale to **500** QA rows (`build_data.py` or equivalent; API or Ollama for Layer 2).
 5. Document counts in data README when committing.
 
 Preference pair generation is a **separate** step and a **separate** doc, after QA data is approved.
