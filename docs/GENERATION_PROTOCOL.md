@@ -19,6 +19,8 @@ Do not guess labels after writing text. Do not use an LLM to decide `answerabili
 
 ## Two layers
 
+Layer 1 rows live in `data_v1_pilot_layer1.jsonl`; Layer 2 paraphrase overwrites `data_v1_pilot.jsonl`.
+
 ### Layer 1 — Rules (human or script template)
 
 Locks everything that must be correct:
