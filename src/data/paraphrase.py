@@ -15,6 +15,7 @@ from pathlib import Path
 from openai import OpenAI
 
 DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_API_BASE = "https://api.openai.com/v1"
 DEFAULT_LAYER1_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot_layer1.jsonl"
 
 # Pilot review set: answerable, unanswerable, known_world_conflict, partial, distractor_entity
@@ -110,8 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help="OpenAI model name",
+        default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL).strip(),
+        help="OpenAI model name (default: OPENAI_MODEL env or gpt-4o-mini)",
     )
     args = parser.parse_args(argv)
 
@@ -120,8 +121,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Missing OPENAI_API_KEY. Set it with: export OPENAI_API_KEY='sk-...'", file=sys.stderr)
         return 1
 
+    api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
     rows = read_jsonl(args.layer1_input)
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
     for row_id in args.ids:
         row = find_row(rows, row_id)
