@@ -157,6 +157,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local-only helpers and run notes (not published)
+cli/
+
 # Spyder project settings
 .spyderproject
 .spyproject
