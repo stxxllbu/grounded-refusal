@@ -1,7 +1,7 @@
 """Layer 2 LLM paraphrase for pilot QA rows.
 
 Reads Layer 1 JSONL, calls OpenAI to rephrase evidence/question/reference_answer,
-and prints Layer 1 vs Layer 2 to stdout for human review. Does not write output files.
+prints Layer 1 vs Layer 2 for review, and can write a complete Layer 2 JSONL file.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from openai import OpenAI
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
 DEFAULT_LAYER1_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot_layer1.jsonl"
+DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot.jsonl"
 
 # Pilot review set: answerable, unanswerable, known_world_conflict, partial, distractor_entity
 DEFAULT_ROW_IDS = ["ex_0021", "ex_0027", "ex_0042", "ex_0031", "ex_0053"]
@@ -49,6 +50,16 @@ def read_jsonl(path: Path) -> list[dict]:
             if line:
                 rows.append(json.loads(line))
     return rows
+
+
+def write_jsonl(path: Path, rows: list[dict]) -> None:
+    """Write all rows atomically so a failed run cannot leave a partial dataset."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    with temporary_path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    temporary_path.replace(path)
 
 
 def find_row(rows: list[dict], row_id: str) -> dict:
@@ -101,6 +112,17 @@ def resolve_row_ids(rows: list[dict], *, all_rows: bool, ids: list[str] | None) 
     return list(DEFAULT_ROW_IDS)
 
 
+def build_layer2_row(row: dict, layer2_fields: dict[str, str]) -> dict:
+    return {
+        **row,
+        **layer2_fields,
+        "metadata": {
+            **row.get("metadata", {}),
+            "creation_process": "template_rule+llm_paraphrase",
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Layer 2 paraphrase review: print Layer 1 vs Layer 2 for selected rows."
@@ -120,7 +142,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Paraphrase every row in --layer1-input (stdout only; does not write files)",
+        help="Paraphrase every row in --layer1-input",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=f"Write complete Layer 2 JSONL (recommended path: {DEFAULT_OUTPUT_PATH})",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Allow replacing an existing --output file",
     )
     parser.add_argument(
         "--model",
@@ -131,6 +164,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.all and args.ids is not None:
         print("Use either --all or --ids, not both.", file=sys.stderr)
+        return 1
+    if args.output is not None and not args.all:
+        print("--output requires --all so the output dataset is complete.", file=sys.stderr)
+        return 1
+    if args.overwrite and args.output is None:
+        print("--overwrite requires --output.", file=sys.stderr)
+        return 1
+    if args.output is not None and args.output.exists() and not args.overwrite:
+        print(f"Output already exists: {args.output}. Pass --overwrite to replace it.", file=sys.stderr)
         return 1
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -144,7 +186,9 @@ def main(argv: list[str] | None = None) -> int:
     client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
     total = len(row_ids)
-    print(f"Paraphrasing {total} row(s) from {args.layer1_input} (stdout only)", file=sys.stderr)
+    mode = f"write to {args.output}" if args.output is not None else "stdout review only"
+    print(f"Paraphrasing {total} row(s) from {args.layer1_input} ({mode})", file=sys.stderr)
+    layer2_rows: list[dict] = []
 
     for index, row_id in enumerate(row_ids, start=1):
         print(f"[{index}/{total}] {row_id}", file=sys.stderr)
@@ -155,10 +199,15 @@ def main(argv: list[str] | None = None) -> int:
             "reference_answer": row["reference_answer"],
         }
         layer2_fields = paraphrase_row(client, row, model=args.model)
+        layer2_rows.append(build_layer2_row(row, layer2_fields))
 
         print_layer(row, "Layer 1", layer1_fields)
         print_layer(row, "Layer 2", layer2_fields)
         print("-" * 60)
+
+    if args.output is not None:
+        write_jsonl(args.output, layer2_rows)
+        print(f"Wrote {len(layer2_rows)} rows to {args.output}", file=sys.stderr)
 
     return 0
 
