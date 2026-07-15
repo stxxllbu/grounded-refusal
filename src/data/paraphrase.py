@@ -93,6 +93,14 @@ def print_layer(row: dict, layer: str, fields: dict[str, str]) -> None:
     print()
 
 
+def resolve_row_ids(rows: list[dict], *, all_rows: bool, ids: list[str] | None) -> list[str]:
+    if all_rows:
+        return [row["id"] for row in rows]
+    if ids is not None:
+        return ids
+    return list(DEFAULT_ROW_IDS)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Layer 2 paraphrase review: print Layer 1 vs Layer 2 for selected rows."
@@ -106,8 +114,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ids",
         nargs="+",
-        default=DEFAULT_ROW_IDS,
-        help="Row ids to paraphrase",
+        default=None,
+        help="Row ids to paraphrase (default: 5-row review set)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Paraphrase every row in --layer1-input (stdout only; does not write files)",
     )
     parser.add_argument(
         "--model",
@@ -116,6 +129,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.all and args.ids is not None:
+        print("Use either --all or --ids, not both.", file=sys.stderr)
+        return 1
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("Missing OPENAI_API_KEY. Set it with: export OPENAI_API_KEY='sk-...'", file=sys.stderr)
@@ -123,9 +140,14 @@ def main(argv: list[str] | None = None) -> int:
 
     api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
     rows = read_jsonl(args.layer1_input)
+    row_ids = resolve_row_ids(rows, all_rows=args.all, ids=args.ids)
     client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
-    for row_id in args.ids:
+    total = len(row_ids)
+    print(f"Paraphrasing {total} row(s) from {args.layer1_input} (stdout only)", file=sys.stderr)
+
+    for index, row_id in enumerate(row_ids, start=1):
+        print(f"[{index}/{total}] {row_id}", file=sys.stderr)
         row = find_row(rows, row_id)
         layer1_fields = {
             "evidence": row["evidence"],
