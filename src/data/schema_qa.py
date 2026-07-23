@@ -1,4 +1,4 @@
-"""QA example row contract (Pydantic). Parallel to schemas/qa_example.schema.json."""
+"""QA example row contract (Pydantic)."""
 
 from __future__ import annotations
 

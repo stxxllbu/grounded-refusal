@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-
 
 def read_jsonl(path: str | Path) -> list[dict]:
     rows: list[dict] = []
@@ -29,10 +27,3 @@ def write_jsonl(path: str | Path, rows: Iterable[dict]) -> None:
     with out.open("w", encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-
-def load_json_schema(name: str) -> dict:
-    """Load a schema file from the repo ``schemas/`` directory."""
-    schema_path = _REPO_ROOT / "schemas" / name
-    with schema_path.open(encoding="utf-8") as f:
-        return json.load(f)
