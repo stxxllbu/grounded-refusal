@@ -22,8 +22,34 @@ def read_jsonl(path: str | Path) -> list[dict]:
 
 
 def write_jsonl(path: str | Path, rows: Iterable[dict]) -> None:
+    """Write JSONL atomically so failures cannot leave a partial output file."""
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", encoding="utf-8") as f:
+    temporary = out.with_suffix(out.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    temporary.replace(out)
+
+
+def find_row(rows: list[dict], row_id: str) -> dict:
+    """Return one row by its ``id`` field."""
+    for row in rows:
+        if row["id"] == row_id:
+            return row
+    raise KeyError(f"Row id not found: {row_id}")
+
+
+def resolve_row_ids(
+    rows: list[dict],
+    *,
+    all_rows: bool,
+    ids: list[str] | None,
+    default_ids: list[str],
+) -> list[str]:
+    """Choose all, explicitly requested, or default review row ids."""
+    if all_rows:
+        return [row["id"] for row in rows]
+    if ids is not None:
+        return ids
+    return list(default_ids)

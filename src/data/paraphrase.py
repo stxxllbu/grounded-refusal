@@ -14,6 +14,8 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
+
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
 DEFAULT_LAYER1_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot_layer1.jsonl"
@@ -40,33 +42,6 @@ OUTPUT:
 Return valid JSON only, with exactly these keys:
 {"evidence": "...", "question": "...", "reference_answer": "..."}
 """
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    rows: list[dict] = []
-    with path.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    return rows
-
-
-def write_jsonl(path: Path, rows: list[dict]) -> None:
-    """Write all rows atomically so a failed run cannot leave a partial dataset."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_suffix(path.suffix + ".tmp")
-    with temporary_path.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    temporary_path.replace(path)
-
-
-def find_row(rows: list[dict], row_id: str) -> dict:
-    for row in rows:
-        if row["id"] == row_id:
-            return row
-    raise KeyError(f"Row id not found: {row_id}")
 
 
 def paraphrase_row(client: OpenAI, row: dict, *, model: str) -> dict[str, str]:
@@ -102,14 +77,6 @@ def print_layer(row: dict, layer: str, fields: dict[str, str]) -> None:
     print(f"question: {fields['question']}")
     print(f"reference_answer: {fields['reference_answer']}")
     print()
-
-
-def resolve_row_ids(rows: list[dict], *, all_rows: bool, ids: list[str] | None) -> list[str]:
-    if all_rows:
-        return [row["id"] for row in rows]
-    if ids is not None:
-        return ids
-    return list(DEFAULT_ROW_IDS)
 
 
 def build_layer2_row(row: dict, layer2_fields: dict[str, str]) -> dict:
@@ -182,7 +149,12 @@ def main(argv: list[str] | None = None) -> int:
 
     api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
     rows = read_jsonl(args.layer1_input)
-    row_ids = resolve_row_ids(rows, all_rows=args.all, ids=args.ids)
+    row_ids = resolve_row_ids(
+        rows,
+        all_rows=args.all,
+        ids=args.ids,
+        default_ids=DEFAULT_ROW_IDS,
+    )
     client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
     total = len(row_ids)
