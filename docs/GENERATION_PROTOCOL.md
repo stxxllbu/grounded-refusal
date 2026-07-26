@@ -227,15 +227,25 @@ Do not invent a new `answerability`. Slice negatives with existing QA labels:
 
 ## Pilot negative map (required)
 
-One pair per QA row for pilot. Choose `rejected` from `answerability` × `evidence_challenge`:
+One pair per QA row for pilot. Decide `negative_type` from existing QA labels only:
 
-| QA situation | `chosen` | `rejected` should do | `negative_type` |
-|--------------|----------|----------------------|-----------------|
-| `answerable` + `[]` | Answer from evidence | Refuse / say don't know | `over_refusal` |
-| `answerable` + `["known_world_conflict"]` | Answer from evidence (even if anti-common-sense) | Prefer world knowledge over evidence, or refuse | `memory_override` (preferred) or `over_refusal` |
-| `unanswerable` + `[]` | Refuse | Fabricate a plausible answer | `hallucination` |
-| `unanswerable` + `["distractor_entity"]` | Refuse | Answer using the distractor / wrong entity | `distractor_confusion` |
-| `partial` + `["partial_evidence"]` | Answer supported part; refuse unsupported | Also fill the unsupported part | `over_complete` |
+`answerability` × `evidence_challenge` → one `negative_type`.
+
+| # | `answerability` | `evidence_challenge` | Correct behavior (`chosen`) | Bad behavior (`rejected`) | `negative_type` |
+|---|-----------------|----------------------|-----------------------------|---------------------------|-----------------|
+| 1 | `answerable` | `[]` | Answer from evidence | Refuse / say don't know even though evidence answers | `over_refusal` |
+| 2 | `answerable` | `["known_world_conflict"]` | Answer from evidence (even if anti-common-sense) | Prefer world knowledge over evidence | `memory_override` |
+| 3 | `unanswerable` | `[]` | Refuse | Fabricate a plausible answer not in evidence | `hallucination` |
+| 4 | `unanswerable` | `["distractor_entity"]` | Refuse | Answer using the distractor / wrong entity | `distractor_confusion` |
+| 5 | `partial` | `["partial_evidence"]` | Answer supported part; refuse unsupported | Also fill the unsupported part | `over_complete` |
+
+Decision order (same map in code):
+
+1. If `answerable` and `known_world_conflict` → `memory_override`
+2. Else if `answerable` → `over_refusal`
+3. Else if `unanswerable` and `distractor_entity` → `distractor_confusion`
+4. Else if `unanswerable` → `hallucination`
+5. Else if `partial` → `over_complete`
 
 Notes:
 
