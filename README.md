@@ -2,81 +2,36 @@
 
 Evidence-grounded QA: answer from provided evidence, refuse when insufficient, partially answer when only partly supported.
 
-## Week 1 — Task definition + hand examples
+## Status
 
-### Task
+| Week | Focus | Status | Report |
+|------|--------|--------|--------|
+| 1 | Task + hand examples (20) | done | [`docs/reports/week1.md`](docs/reports/week1.md) |
+| 2 | Pilot QA + preference (50 + 50) | **pilot done**; full ~500 deferred | [`docs/reports/week2.md`](docs/reports/week2.md) |
+| 3 | Eval / base baseline | not started | — |
 
-Given **evidence** and a **question**, the correct behavior is:
+## Quick data pointers
 
-1. **Answer** when the evidence is sufficient (`answerable`)
-2. **Refuse** when the evidence is insufficient (`unanswerable`)
-3. **Partially answer** when the evidence only supports part of the question (`partial`)
+| File | Rows | Role |
+|------|-----:|------|
+| [`data/hand_examples.jsonl`](data/hand_examples.jsonl) | 20 | Week 1 gold (`dev`) |
+| [`data/data_v1_pilot_layer1.jsonl`](data/data_v1_pilot_layer1.jsonl) | 50 | Week 2 Layer 1 templates |
+| [`data/data_v1_pilot.jsonl`](data/data_v1_pilot.jsonl) | 50 | Week 2 Layer 2 paraphrased QA |
+| [`data/preference_v1_pilot.jsonl`](data/preference_v1_pilot.jsonl) | 50 | Week 2 DPO pairs (1:1 with Layer 2) |
 
-Use **only the provided evidence** — not outside world knowledge unless the evidence states it.
+**Week 2 pilot mix (QA):** 20 answerable / 20 unanswerable / 10 partial.  
+**Week 2 pilot mix (preference):** 17 over_refusal / 10 hallucination / 10 distractor_confusion / 10 over_complete / 3 memory_override.
 
-### Repo map
+Full distributions, schemas, and pipeline notes: see the week reports above.
 
-| File | What it is |
-|------|------------|
-| [`docs/DATA_LABELS.md`](docs/DATA_LABELS.md) | Label definitions: `answerability`, `evidence_type`, `evidence_challenge` |
-| [`data/hand_examples.jsonl`](data/hand_examples.jsonl) | 20 hand-written gold examples |
-| [`configs/prompts/default.yaml`](configs/prompts/default.yaml) | Shared prompt instruction + section labels |
+## Labels and protocol
 
-### Hand examples (`data/hand_examples.jsonl`)
+| Doc | Contents |
+|-----|----------|
+| [`docs/DATA_LABELS.md`](docs/DATA_LABELS.md) | `answerability`, `evidence_type`, `evidence_challenge` |
+| [`docs/GENERATION_PROTOCOL.md`](docs/GENERATION_PROTOCOL.md) | How QA + preference rows are built |
+| [`configs/prompts/default.yaml`](configs/prompts/default.yaml) | Shared Evidence / Question / Instruction template |
 
-20 rows in `dev` split, `dataset_version: v1`:
+## Task (one paragraph)
 
-| `answerability` | Count | IDs | Notes |
-|-----------------|-------|-----|-------|
-| `answerable` | 5 | `ex_0001`–`ex_0005` | includes 1 `known_world_conflict` (`ex_0002`) |
-| `unanswerable` | 5 | `ex_0006`–`ex_0010` | plain missing-info cases |
-| `partial` | 5 | `ex_0011`–`ex_0015` | each has `question_decomposition` + `supported_subquestions` |
-| `unanswerable` | 5 | `ex_0016`–`ex_0020` | `evidence_challenge: ["distractor_entity"]` |
-
-Each row is one JSON object (JSONL = one JSON per line).
-
-### Core fields per example
-
-| Field | Meaning |
-|-------|---------|
-| `evidence` | Text the model may use |
-| `question` | What to answer |
-| `reference_answer` | Gold response |
-| `answerability` | `answerable` \| `unanswerable` \| `partial` |
-| `evidence_type` | Shape of evidence: `single_sentence`, `short_paragraph`, `multi_paragraph` |
-| `evidence_challenge` | Difficulty tags, or `[]` for simple cases |
-| `question_decomposition` | Sub-parts of the question (when `partial`) |
-| `supported_subquestions` | Which sub-parts the evidence supports (when `partial`) |
-
-See [`docs/DATA_LABELS.md`](docs/DATA_LABELS.md) for full definitions.
-
-### Prompt rule (`configs/prompts/default.yaml`)
-
-For each example, the prompt is:
-
-```
-Evidence:
-{evidence from jsonl}
-
-Question:
-{question from jsonl}
-
-Instruction:
-{instruction from default.yaml}
-```
-
-### Example row (`ex_0006`, unanswerable)
-
-```json
-{
-  "id": "ex_0006",
-  "evidence": "The Amazon rainforest is the largest tropical rainforest in the world.",
-  "question": "How long is the Amazon River?",
-  "reference_answer": "The provided evidence does not contain information about the length of the Amazon River, so I don't know.",
-  "answerability": "unanswerable",
-  "evidence_type": "single_sentence",
-  "evidence_challenge": []
-}
-```
-
-Correct behavior: refuse — the evidence talks about the rainforest, not river length.
+Given **evidence** and a **question**, use only the evidence: **answer** if sufficient, **refuse** if not, **partially answer** if only part is supported. Do not override evidence with outside world knowledge unless the evidence itself states that fact.
