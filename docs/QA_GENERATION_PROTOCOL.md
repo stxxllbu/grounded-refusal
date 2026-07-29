@@ -4,7 +4,7 @@ How we build QA JSONL: `data/hand_examples.jsonl`, `data/data_v1_pilot_layer1.js
 
 **Label values:** [`DATA_LABELS.md`](DATA_LABELS.md).  
 **Schema:** [`src/data/schema_qa.py`](../src/data/schema_qa.py).  
-**Preference pairs:** separate step (temporary notes in deprecated [`GENERATION_PROTOCOL.md`](GENERATION_PROTOCOL.md)).
+**Preference pairs:** [`PREFERENCE_GENERATION_PROTOCOL.md`](PREFERENCE_GENERATION_PROTOCOL.md).
 
 ---
 

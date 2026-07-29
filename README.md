@@ -29,8 +29,8 @@ Full distributions, schemas, and pipeline notes: see the week reports above.
 | Doc | Contents |
 |-----|----------|
 | [`docs/DATA_LABELS.md`](docs/DATA_LABELS.md) | `answerability`, `evidence_type`, `evidence_challenge` |
-| [`docs/QA_GENERATION_PROTOCOL.md`](docs/QA_GENERATION_PROTOCOL.md) | How QA rows are built (fields + Layer 1/2 + rules) |
-| [`docs/GENERATION_PROTOCOL.md`](docs/GENERATION_PROTOCOL.md) | Deprecated hub; preference protocol still here for now |
+| [`docs/QA_GENERATION_PROTOCOL.md`](docs/QA_GENERATION_PROTOCOL.md) | How QA rows are built |
+| [`docs/PREFERENCE_GENERATION_PROTOCOL.md`](docs/PREFERENCE_GENERATION_PROTOCOL.md) | How preference pairs are built |
 | [`configs/prompts/default.yaml`](configs/prompts/default.yaml) | Shared Evidence / Question / Instruction template |
 
 ## Task (one paragraph)

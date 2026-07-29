@@ -12,7 +12,7 @@
 | QA validator | [`src/data/validate_qa_jsonl_against_schema.py`](../../src/data/validate_qa_jsonl_against_schema.py) | — |
 | Layer 2 script | [`src/data/paraphrase.py`](../../src/data/paraphrase.py) | — |
 | Preference builder | [`src/data/build_preference.py`](../../src/data/build_preference.py) | — |
-| Protocol | [`docs/QA_GENERATION_PROTOCOL.md`](../QA_GENERATION_PROTOCOL.md) (QA); preference still in deprecated [`GENERATION_PROTOCOL.md`](../GENERATION_PROTOCOL.md) | — |
+| Protocol | [`QA_GENERATION_PROTOCOL.md`](../QA_GENERATION_PROTOCOL.md), [`PREFERENCE_GENERATION_PROTOCOL.md`](../PREFERENCE_GENERATION_PROTOCOL.md) | — |
 
 IDs: QA `ex_0021`–`ex_0070`; preference `pref_0021`–`pref_0070` (1:1 via `base_example_id`).
 
