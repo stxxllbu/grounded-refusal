@@ -6,7 +6,9 @@ How we build preference JSONL from approved QA rows: `data/preference_v1_pilot.j
 **QA labels:** [`DATA_LABELS.md`](DATA_LABELS.md).  
 **Schema:** [`src/data/schema_pref.py`](../src/data/schema_pref.py) (`PreferencePair`, `NegativeType`).
 
-Each preference row is derived from one approved QA row and linked to it through `base_example_id`. Preference generation does not rebuild or relabel the QA data.
+Each preference row is one DPO training pair derived from an approved QA row and
+linked to it through `base_example_id`. Preference generation does not rebuild or
+relabel the QA data.
 
 ---
 
@@ -18,7 +20,8 @@ Each preference row is derived from one approved QA row and linked to it through
 4. Write one deliberate bad answer as `rejected` (API or human), matching that `negative_type`.
 5. Pilot default: **1 QA → 1 preference pair**. More pairs per QA are optional later.
 
-The three labels describe different things:
+Preference generation reuses `answerability` and `evidence_challenge` from the
+source QA row, then assigns `negative_type` to describe how `rejected` fails:
 
 - `answerability`: the correct response behavior.
 - `evidence_challenge`: why the QA item is difficult.
@@ -27,8 +30,6 @@ The three labels describe different things:
 ---
 
 ## Fields
-
-One row = one DPO training pair.
 
 | Field | Required | Purpose |
 |-------|----------|---------|
@@ -41,7 +42,7 @@ One row = one DPO training pair.
 | `dataset_version` | yes | Same family as QA, e.g. `v1`. |
 | `metadata` | no | e.g. `creation_process`, `notes`. |
 
-`NegativeType` enum values in the schema (pilot uses all five):  
+Allowed values for `negative_type` are:
 `hallucination` | `over_refusal` | `over_complete` | `distractor_confusion` | `memory_override`.
 
 ---
@@ -57,20 +58,19 @@ assemble prompt + chosen
         ↓
 generate rejected     (API writes text only)
         ↓
-PreferencePair validate
+validate PreferencePair
         ↓
-preference_*.jsonl
+write preference_*.jsonl
 ```
 
-| Step | What it does | Where |
-|------|----------------|-------|
-| Input QA | Approved Layer 2 (or full) QA rows | e.g. `data/data_v1_pilot.jsonl` |
-| Map type | `answerability` × `evidence_challenge` → `negative_type` | [`build_preference.py`](../src/data/build_preference.py) `choose_negative_type` |
-| Prompt / chosen | Format prompt; copy `reference_answer` | same script + `configs/prompts/default.yaml` |
-| Rejected | API generates bad answer for fixed type | `generate_rejected` in `build_preference.py` |
-| Validate | Field shape + enum | `PreferencePair` in [`schema_pref.py`](../src/data/schema_pref.py) |
-| IO | Read/write JSONL | [`util/io.py`](../src/util/io.py) |
-| Output | Preference dataset | e.g. `data/preference_v1_pilot.jsonl` |
+| Stage | What it does | Where |
+|-------|--------------|-------|
+| Input QA | Read approved Layer 2 (or full) QA rows | [`data_v1_pilot.jsonl`](../data/data_v1_pilot.jsonl); later `data/data_v1.jsonl` |
+| Select `negative_type` | Map QA labels to one failure mode | [`build_preference.py`](../src/data/build_preference.py) → `choose_negative_type` |
+| Assemble `prompt` / `chosen` | Format `prompt`; copy `reference_answer` to `chosen` | [`build_preference.py`](../src/data/build_preference.py) → `format_preference_prompt`; [`default.yaml`](../configs/prompts/default.yaml) |
+| Generate `rejected` | Generate a bad answer for the selected failure mode | [`build_preference.py`](../src/data/build_preference.py) → `generate_rejected` |
+| Validate pair | Validate field shape and enum values | [`schema_pref.py`](../src/data/schema_pref.py) → `PreferencePair` |
+| Write output | Write validated pairs to JSONL | [`util/io.py`](../src/util/io.py) → [`preference_v1_pilot.jsonl`](../data/preference_v1_pilot.jsonl); later `data/preference_v1.jsonl` |
 
 Python decides `negative_type` and system instructions; the API returns **only** `rejected` text. Details: **FAQ**.
 
@@ -78,17 +78,21 @@ Python decides `negative_type` and system instructions; the API returns **only**
 
 ## Construction rules
 
-Fields lists every column. Fill order:
+The Fields section defines every column. Follow these steps in order when
+building a preference row.
 
-1. **Pick QA row** — must already satisfy [`QA_GENERATION_PROTOCOL.md`](QA_GENERATION_PROTOCOL.md).
-2. **Choose `negative_type`** — pilot map below (required).
-3. **Assemble locals** — `id`, `base_example_id`, `prompt`, `chosen`, `dataset_version`.
-4. **Write `rejected`** — wrong for that `negative_type`, similar fluency to `chosen`.
-5. **Optional metadata** — e.g. `creation_process: llm_generated`.
+### 1. Select an approved QA row
 
-### Pilot negative map (required)
+The source row must satisfy
+[`QA_GENERATION_PROTOCOL.md`](QA_GENERATION_PROTOCOL.md). Prefer a row that has
+completed Layer 2 paraphrasing.
 
-Python maps `answerability` × `evidence_challenge` to one `negative_type`; the LLM does not choose it.
+### 2. Choose `negative_type`
+
+Python maps `answerability` × `evidence_challenge` to one `negative_type`; the
+LLM does not choose it. Use the following fixed mapping for the pilot.
+
+#### Pilot map
 
 | # | `answerability` | `evidence_challenge` | Correct (`chosen`) | Bad (`rejected`) | `negative_type` |
 |---|-----------------|----------------------|--------------------|------------------|-----------------|
@@ -112,51 +116,42 @@ Notes:
 - Do not use one generic hallucination for all unanswerable rows. Plain unanswerable and distractor cases require different `rejected` content.
 - Pilot `partial`: **`over_complete` only**.
 
-### Examples by `negative_type`
+#### Examples
 
 One example per type, condensed from pilot rows. The shared instruction is omitted
 so the `chosen` / `rejected` contrast stays visible.
 
-#### `over_refusal`
+**`over_refusal` — `pref_0021`**
 
 ```text
 evidence: “The deepest point of Crater Lake reaches 594 meters.”
 question: “What is the deepest point of Crater Lake?”
 chosen:   “The deepest point reaches 594 meters.”
 rejected: “The evidence does not provide enough information, so I don’t know.”
+Why it fails: The evidence fully answers the question, but the response refuses.
 ```
 
-Why it fails: The evidence fully answers the question, but the response refuses.
-
-Example: `pref_0021`.
-
-#### `memory_override`
+**`memory_override` — `pref_0042`**
 
 ```text
 evidence: “The text states that water boils at 50°C at sea level.”
 question: “What boiling point is stated in the text?”
 chosen:   “The text states that water boils at 50°C at sea level.”
 rejected: “Water boils at 100°C at sea level.”
+Why it fails: World knowledge replaces the value supplied by the evidence.
 ```
 
-Why it fails: World knowledge replaces the value supplied by the evidence.
-
-Example: `pref_0042`.
-
-#### `hallucination`
+**`hallucination` — `pref_0026`**
 
 ```text
 evidence: “The current CEO of Harbor Labs is Priya Nair.”
 question: “When was Harbor Labs founded?”
 chosen:   “The evidence does not provide the founding year, so I don’t know.”
 rejected: “Harbor Labs was founded in 2015.”
+Why it fails: A plausible fact that is absent from the evidence is invented.
 ```
 
-Why it fails: A plausible fact that is absent from the evidence is invented.
-
-Example: `pref_0026`.
-
-#### `distractor_confusion`
+**`distractor_confusion` — `pref_0051`**
 
 ```text
 evidence: “The Mississippi River runs through the United States, while the
@@ -164,13 +159,10 @@ evidence: “The Mississippi River runs through the United States, while the
 question: “Where does the Amazon River flow?”
 chosen:   “The evidence does not specify where the Amazon River flows.”
 rejected: “The Amazon River flows through the United States.”
+Why it fails: Information is carried over from the distractor entity.
 ```
 
-Why it fails: Information is carried over from the distractor entity.
-
-Example: `pref_0051`.
-
-#### `over_complete`
+**`over_complete` — `pref_0031`**
 
 ```text
 evidence: “Alan Turing was born in London.”
@@ -178,15 +170,13 @@ question: “Where was Alan Turing born, and in what year did he die?”
 chosen:   “Alan Turing was born in London. The evidence does not give the year
            of his death.”
 rejected: “Alan Turing was born in London, and he died in 1954.”
+Why it fails: The unsupported half is answered instead of refused.
 ```
 
-Why it fails: The unsupported half is answered instead of refused.
+### 3. Assemble `prompt` and `chosen`
 
-Example: `pref_0031`.
-
-### How `prompt` is constructed
-
-The builder deterministically assembles `prompt` from:
+Set `chosen` to the source QA row’s `reference_answer`. The builder
+deterministically assembles `prompt` from:
 
 - `evidence` and `question` in the source QA row;
 - `instruction`, `evidence_label`, and `question_label` in
@@ -208,16 +198,18 @@ Instruction:
 No LLM generates or rewrites `prompt` or `chosen`; the LLM is used only to
 generate the `rejected` response.
 
-### Rejected response rules
+### 4. Generate `rejected` with the API
+
+Python selects `negative_type` and its matching system instruction. The API
+generates only the `rejected` response.
 
 - `rejected` must fail in the way specified by `negative_type`, rather than being
   generically wrong.
 - `chosen` and `rejected` should have similar fluency, so DPO does not learn a
   style shortcut.
 - `rejected` must not mention the hidden generation instruction.
-- Prefer QA rows that have completed Layer 2 paraphrasing.
 
-### Bookkeeping
+### 5. Set bookkeeping fields and validate
 
 | Field | How to set |
 |-------|------------|
@@ -226,13 +218,9 @@ generate the `rejected` response.
 | `dataset_version` | match QA (e.g. `v1`) |
 | `metadata.creation_process` | typically `llm_generated` when the API writes `rejected` |
 
-### Optional later negatives (not required for pilot)
-
-| QA situation | Extra `rejected` idea | `negative_type` |
-|--------------|----------------------|-----------------|
-| `partial` | refuse the whole question | `over_refusal` |
-| `answerable` + `known_world_conflict` | second pair with the other of `{memory_override, over_refusal}` | as labeled |
-| any | style-only bad answers / typos | avoid — not a grounding failure |
+Build and validate a `PreferencePair` before writing it to JSONL. Schema
+validation covers field shape and enum values; semantic quality still requires
+human review.
 
 ---
 
@@ -244,6 +232,14 @@ generate the `rejected` response.
 | Full `preference_v1.jsonl` | ~**500** (1:1 with `data_v1.jsonl`), after full QA exists |
 
 Distributions: [`reports/week2.md`](reports/week2.md).
+
+### Optional additional pairs after the pilot
+
+| QA situation | Extra `rejected` idea | `negative_type` |
+|--------------|----------------------|-----------------|
+| `partial` | refuse the whole question | `over_refusal` |
+| `answerable` + `known_world_conflict` | second pair with the other of `{memory_override, over_refusal}` | as labeled |
+| any | style-only bad answers / typos | avoid — not a grounding failure |
 
 **Workflow**
 
@@ -264,8 +260,12 @@ No. Python chooses it from the pilot map, then picks the matching system instruc
 
 They live on the QA row. Preference links with `base_example_id` and puts the training input in `prompt`. This avoids duplicated copies that could drift apart.
 
+### Style constraints for `chosen` / `rejected`?
+
+- Similar fluency (avoid template `chosen` vs polished `rejected`, or DPO may reward style).
+- Prefer QA that already finished Layer 2 paraphrase.
+- `rejected` must be wrong **for the labeled `negative_type`**, not just a paraphrase of `chosen`.
+
 ### What does schema validation cover?
 
-`PreferencePair(...)` validates field shape and the `negative_type` enum. It
-cannot determine whether `rejected` actually exhibits that failure mode; that
-requires human review or a later judge.
+`PreferencePair(...)` validates field shape and the `negative_type` enum. It cannot determine whether `rejected` actually exhibits that failure mode; that requires human review or a later judge.
