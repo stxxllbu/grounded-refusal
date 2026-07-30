@@ -20,9 +20,9 @@ This does **not** rebuild QA. Each preference row is **derived** from one QA row
 
 Do not invent a new `answerability`. Slice with existing QA labels:
 
-- `answerability` = correct behavior  
-- `evidence_challenge` = why the item is hard  
-- `negative_type` = how `rejected` fails  
+- `answerability` = correct behavior.
+- `evidence_challenge` = why the item is hard.
+- `negative_type` = how `rejected` fails.
 
 ---
 
@@ -41,31 +41,7 @@ One row = one DPO training pair.
 | `dataset_version` | yes | Same family as QA, e.g. `v1`. |
 | `metadata` | no | e.g. `creation_process`, `notes`. |
 
-### How `prompt` is constructed
-
-The builder deterministically assembles `prompt` from:
-
-- `evidence` and `question` in the source QA row;
-- `instruction`, `evidence_label`, and `question_label` in
-  [`configs/prompts/default.yaml`](../configs/prompts/default.yaml).
-
-The resulting format is:
-
-```text
-{evidence_label}:
-{QA evidence}
-
-{question_label}:
-{QA question}
-
-Instruction:
-{instruction}
-```
-
-No LLM generates or rewrites `prompt`. The LLM is used only to generate the
-`rejected` response.
-
-`NegativeType` enum values in schema (pilot uses all five):  
+`NegativeType` enum values in the schema (pilot uses all five):  
 `hallucination` | `over_refusal` | `over_complete` | `distractor_confusion` | `memory_override`.
 
 ---
@@ -136,22 +112,118 @@ Notes:
 - Do not use one generic hallucination for all unanswerable rows: `[]` vs `distractor_entity` need different `rejected` content.
 - Pilot `partial`: **`over_complete` only**.
 
+### Examples by `negative_type`
+
+One example per type, condensed from pilot rows. The shared instruction is omitted
+so the `chosen` / `rejected` contrast stays visible.
+
+#### `over_refusal`
+
+```text
+evidence: “The deepest point of Crater Lake reaches 594 meters.”
+question: “What is the deepest point of Crater Lake?”
+chosen:   “The deepest point reaches 594 meters.”
+rejected: “The evidence does not provide enough information, so I don’t know.”
+```
+
+Why it fails: The evidence fully answers the question, but the response refuses.
+
+Example: `pref_0021`.
+
+#### `memory_override`
+
+```text
+evidence: “The text states that water boils at 50°C at sea level.”
+question: “What boiling point is stated in the text?”
+chosen:   “The text states that water boils at 50°C at sea level.”
+rejected: “Water boils at 100°C at sea level.”
+```
+
+Why it fails: World knowledge replaces the value supplied by the evidence.
+
+Example: `pref_0042`.
+
+#### `hallucination`
+
+```text
+evidence: “The current CEO of Harbor Labs is Priya Nair.”
+question: “When was Harbor Labs founded?”
+chosen:   “The evidence does not provide the founding year, so I don’t know.”
+rejected: “Harbor Labs was founded in 2015.”
+```
+
+Why it fails: A plausible fact that is absent from the evidence is invented.
+
+Example: `pref_0026`.
+
+#### `distractor_confusion`
+
+```text
+evidence: “The Mississippi River runs through the United States, while the
+           Amazon rainforest is in South America.”
+question: “Where does the Amazon River flow?”
+chosen:   “The evidence does not specify where the Amazon River flows.”
+rejected: “The Amazon River flows through the United States.”
+```
+
+Why it fails: Information is carried over from the distractor entity.
+
+Example: `pref_0051`.
+
+#### `over_complete`
+
+```text
+evidence: “Alan Turing was born in London.”
+question: “Where was Alan Turing born, and in what year did he die?”
+chosen:   “Alan Turing was born in London. The evidence does not give the year
+           of his death.”
+rejected: “Alan Turing was born in London, and he died in 1954.”
+```
+
+Why it fails: The unsupported half is answered instead of refused.
+
+Example: `pref_0031`.
+
+### How `prompt` is constructed
+
+The builder deterministically assembles `prompt` from:
+
+- `evidence` and `question` in the source QA row;
+- `instruction`, `evidence_label`, and `question_label` in
+  [`configs/prompts/default.yaml`](../configs/prompts/default.yaml).
+
+The resulting format is:
+
+```text
+{evidence_label}:
+{QA evidence}
+
+{question_label}:
+{QA question}
+
+Instruction:
+{instruction}
+```
+
+No LLM generates or rewrites `prompt`. The LLM is used only to generate the
+`rejected` response.
+
 ### Bookkeeping
 
 | Field | How to set |
 |-------|------------|
 | `id` | `pref_` + digits from QA id (`ex_0021` → `pref_0021`) |
 | `base_example_id` | QA `id` |
-| `dataset_version` | Match QA (e.g. `v1`) |
-| `metadata.creation_process` | typically `llm_generated` when API writes `rejected` |
+| `dataset_version` | match QA (e.g. `v1`) |
+| `metadata.creation_process` | typically `llm_generated` when the API writes `rejected` |
 
 ### Optional later negatives (not required for pilot)
 
 | QA situation | Extra `rejected` idea | `negative_type` |
 |--------------|----------------------|-----------------|
-| `partial` | Refuse the whole question | `over_refusal` |
-| `answerable` + `known_world_conflict` | Second pair with the other of `{memory_override, over_refusal}` | as labeled |
-| any | Style-only bad answers / typos | avoid — not a grounding failure |
+| `partial` | refuse the whole question | `over_refusal` |
+| `answerable` + `known_world_conflict` | second pair with the other of `{memory_override, over_refusal}` | as labeled |
+| any | style-only bad answers / typos | avoid — not a grounding failure |
 
 ---
 
@@ -166,7 +238,7 @@ Distributions: [`reports/week2.md`](reports/week2.md).
 
 **Workflow**
 
-1. Freeze / approve the QA file used as base.
+1. Freeze / approve the QA file used as the base.
 2. Run [`build_preference.py`](../src/data/build_preference.py) (map type → API `rejected` → validate → write).
 3. Human-review a sample across all five slices (especially `memory_override`).
 4. Scale with the same map when full QA exists.
@@ -181,7 +253,7 @@ No. Python chooses it from the pilot map, then picks the matching system instruc
 
 ### Why not store `evidence` / `answerability` again on the preference row?
 
-They live on the QA row. Preference links with `base_example_id` and puts the training input in `prompt`. Avoids duplicated drifting copies.
+They live on the QA row. Preference links with `base_example_id` and puts the training input in `prompt`. This avoids duplicated copies that could drift apart.
 
 ### Style constraints for `chosen` / `rejected`?
 
@@ -191,4 +263,4 @@ They live on the QA row. Preference links with `base_example_id` and puts the tr
 
 ### What does schema validation cover?
 
-`PreferencePair(...)` checks field shape and that `negative_type` is one of the five enums. It does **not** judge whether the `rejected` text truly matches that failure mode—that needs human review (or a later judge).
+`PreferencePair(...)` checks field shape and that `negative_type` is one of the five enums. It does **not** judge whether the `rejected` text truly matches that failure mode — that needs human review (or a later judge).
