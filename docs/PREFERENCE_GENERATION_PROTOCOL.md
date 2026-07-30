@@ -6,9 +6,7 @@ How we build preference JSONL from approved QA rows: `data/preference_v1_pilot.j
 **QA labels:** [`DATA_LABELS.md`](DATA_LABELS.md).  
 **Schema:** [`src/data/schema_pref.py`](../src/data/schema_pref.py) (`PreferencePair`, `NegativeType`).
 
-Each preference row is one DPO training pair derived from an approved QA row and
-linked to it through `base_example_id`. Preference generation does not rebuild or
-relabel the QA data.
+Each preference row is one DPO training pair derived from an approved QA row and linked to it through `base_example_id`. Preference generation does not rebuild or relabel the QA data.
 
 ---
 
