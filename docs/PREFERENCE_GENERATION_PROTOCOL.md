@@ -6,7 +6,7 @@ How we build preference JSONL from approved QA rows: `data/preference_v1_pilot.j
 **QA labels:** [`DATA_LABELS.md`](DATA_LABELS.md).  
 **Schema:** [`src/data/schema_pref.py`](../src/data/schema_pref.py) (`PreferencePair`, `NegativeType`).
 
-This does **not** rebuild QA. Each preference row is **derived** from one QA row via `base_example_id`.
+Each preference row is derived from one approved QA row and linked to it through `base_example_id`. Preference generation does not rebuild or relabel the QA data.
 
 ---
 
@@ -18,11 +18,11 @@ This does **not** rebuild QA. Each preference row is **derived** from one QA row
 4. Write one deliberate bad answer as `rejected` (API or human), matching that `negative_type`.
 5. Pilot default: **1 QA → 1 preference pair**. More pairs per QA are optional later.
 
-Do not invent a new `answerability`. Slice with existing QA labels:
+The three labels describe different things:
 
-- `answerability` = correct behavior.
-- `evidence_challenge` = why the item is hard.
-- `negative_type` = how `rejected` fails.
+- `answerability`: the correct response behavior.
+- `evidence_challenge`: why the QA item is difficult.
+- `negative_type`: how the `rejected` response fails.
 
 ---
 
@@ -88,7 +88,7 @@ Fields lists every column. Fill order:
 
 ### Pilot negative map (required)
 
-`answerability` × `evidence_challenge` → one `negative_type`.
+Python maps `answerability` × `evidence_challenge` to one `negative_type`; the LLM does not choose it.
 
 | # | `answerability` | `evidence_challenge` | Correct (`chosen`) | Bad (`rejected`) | `negative_type` |
 |---|-----------------|----------------------|--------------------|------------------|-----------------|
@@ -109,7 +109,7 @@ Decision order (same as code):
 Notes:
 
 - `known_world_conflict` is **answerable**, not unanswerable.
-- Do not use one generic hallucination for all unanswerable rows: `[]` vs `distractor_entity` need different `rejected` content.
+- Do not use one generic hallucination for all unanswerable rows. Plain unanswerable and distractor cases require different `rejected` content.
 - Pilot `partial`: **`over_complete` only**.
 
 ### Examples by `negative_type`
@@ -205,8 +205,17 @@ Instruction:
 {instruction}
 ```
 
-No LLM generates or rewrites `prompt`. The LLM is used only to generate the
-`rejected` response.
+No LLM generates or rewrites `prompt` or `chosen`; the LLM is used only to
+generate the `rejected` response.
+
+### Rejected response rules
+
+- `rejected` must fail in the way specified by `negative_type`, rather than being
+  generically wrong.
+- `chosen` and `rejected` should have similar fluency, so DPO does not learn a
+  style shortcut.
+- `rejected` must not mention the hidden generation instruction.
+- Prefer QA rows that have completed Layer 2 paraphrasing.
 
 ### Bookkeeping
 
@@ -241,7 +250,7 @@ Distributions: [`reports/week2.md`](reports/week2.md).
 1. Freeze / approve the QA file used as the base.
 2. Run [`build_preference.py`](../src/data/build_preference.py) (map type → API `rejected` → validate → write).
 3. Human-review a sample across all five slices (especially `memory_override`).
-4. Scale with the same map when full QA exists.
+4. Fix the map or generation instructions if needed, then scale with the same process.
 
 ---
 
@@ -255,12 +264,8 @@ No. Python chooses it from the pilot map, then picks the matching system instruc
 
 They live on the QA row. Preference links with `base_example_id` and puts the training input in `prompt`. This avoids duplicated copies that could drift apart.
 
-### Style constraints for `chosen` / `rejected`?
-
-- Similar fluency (avoid template `chosen` vs polished `rejected`, or DPO may reward style).
-- Prefer QA that already finished Layer 2 paraphrase.
-- `rejected` must be wrong **for the labeled `negative_type`**, not just a paraphrase of `chosen`.
-
 ### What does schema validation cover?
 
-`PreferencePair(...)` checks field shape and that `negative_type` is one of the five enums. It does **not** judge whether the `rejected` text truly matches that failure mode — that needs human review (or a later judge).
+`PreferencePair(...)` validates field shape and the `negative_type` enum. It
+cannot determine whether `rejected` actually exhibits that failure mode; that
+requires human review or a later judge.
