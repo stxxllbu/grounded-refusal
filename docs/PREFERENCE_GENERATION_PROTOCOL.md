@@ -34,30 +34,36 @@ One row = one DPO training pair.
 |-------|----------|---------|
 | `id` | yes | Preference id, e.g. `pref_0021` (optional letter suffix for multiple pairs: `pref_0021a`). |
 | `base_example_id` | yes | Links to QA `id`, e.g. `ex_0021`. |
-| `prompt` | yes | Full model input: evidence + question + instruction. |
+| `prompt` | yes | Full model input assembled from the source QA row and prompt config. |
 | `chosen` | yes | Preferred answer (= QA `reference_answer`). |
 | `rejected` | yes | One specific bad answer. |
 | `negative_type` | yes | Failure mode of `rejected` (see map below). |
 | `dataset_version` | yes | Same family as QA, e.g. `v1`. |
 | `metadata` | no | e.g. `creation_process`, `notes`. |
 
-`prompt` is assembled deterministically by the preference builder. It inserts the QA
-example's `evidence` and `question` into this fixed template:
+### How `prompt` is constructed
+
+The builder deterministically assembles `prompt` from:
+
+- `evidence` and `question` in the source QA row;
+- `instruction`, `evidence_label`, and `question_label` in
+  [`configs/prompts/default.yaml`](../configs/prompts/default.yaml).
+
+The resulting format is:
 
 ```text
-Evidence:
-{evidence}
+{evidence_label}:
+{QA evidence}
 
-Question:
-{question}
+{question_label}:
+{QA question}
 
 Instruction:
 {instruction}
 ```
 
-The instruction and section labels come from
-[`configs/prompts/default.yaml`](../configs/prompts/default.yaml). The prompt is not
-generated or rewritten by an LLM.
+No LLM generates or rewrites `prompt`. The LLM is used only to generate the
+`rejected` response.
 
 `NegativeType` enum values in schema (pilot uses all five):  
 `hallucination` | `over_refusal` | `over_complete` | `distractor_confusion` | `memory_override`.
@@ -96,7 +102,7 @@ Python decides `negative_type` and system instructions; the API returns **only**
 
 ## Construction rules
 
-The Fields section lists every column. Fill order:
+Fields lists every column. Fill order:
 
 1. **Pick QA row** — must already satisfy [`QA_GENERATION_PROTOCOL.md`](QA_GENERATION_PROTOCOL.md).
 2. **Choose `negative_type`** — pilot map below (required).
@@ -144,7 +150,7 @@ Notes:
 | QA situation | Extra `rejected` idea | `negative_type` |
 |--------------|----------------------|-----------------|
 | `partial` | Refuse the whole question | `over_refusal` |
-| `answerable` + `known_world_conflict` | Add a second pair whose `rejected` refuses despite sufficient evidence | `over_refusal` |
+| `answerable` + `known_world_conflict` | Second pair with the other of `{memory_override, over_refusal}` | as labeled |
 | any | Style-only bad answers / typos | avoid — not a grounding failure |
 
 ---
