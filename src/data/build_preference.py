@@ -12,7 +12,6 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
 from openai import OpenAI
 
 from data.schema_pref import (
@@ -26,6 +25,7 @@ from data.schema_qa import (
     QAExample,
 )
 from util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
+from util.prompt_assembly import format_qa_prompt, load_prompt_config
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
@@ -108,27 +108,6 @@ def choose_negative_type(qa: QAExample) -> NegativeType:
 
 def rejection_system_prompt(neg_type: NegativeType) -> str:
     return REJECTION_SYSTEM_PROMPTS[neg_type]
-
-
-def load_prompt_config(path: Path) -> dict:
-    with path.open(encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    return cfg
-
-
-def format_preference_prompt(
-    qa: QAExample,
-    *,
-    instruction: str,
-    evidence_label: str = "Evidence",
-    question_label: str = "Question",
-) -> str:
-    """Assemble the DPO training prompt from QA fields + instruction template."""
-    return (
-        f"{evidence_label}:\n{qa.evidence}\n\n"
-        f"{question_label}:\n{qa.question}\n\n"
-        f"Instruction:\n{instruction.strip()}"
-    )
 
 
 def preference_id_from_qa(qa_id: str) -> str:
@@ -310,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{index}/{total}] {row_id}", file=sys.stderr)
         qa = QAExample.model_validate(find_row(raw_rows, row_id))
         neg_type = choose_negative_type(qa)
-        prompt = format_preference_prompt(
+        prompt = format_qa_prompt(
             qa,
             instruction=instruction,
             evidence_label=evidence_label,
