@@ -1,0 +1,5 @@
+# Tiny model for Mac smoke tests only.
+model_name: Qwen/Qwen2.5-0.5B-Instruct
+max_new_tokens: 128
+temperature: 0.0
+device_map: auto

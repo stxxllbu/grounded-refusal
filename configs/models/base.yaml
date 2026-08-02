@@ -1,0 +1,6 @@
+# Default base model for Week 1 smoke inference.
+# Swap to another small instruct model as needed.
+model_name: Qwen/Qwen2.5-3B-Instruct
+max_new_tokens: 256
+temperature: 0.0
+device_map: auto
