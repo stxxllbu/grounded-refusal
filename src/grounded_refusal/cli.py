@@ -78,3 +78,7 @@ def infer_main(argv: list[str] | None = None) -> int:
     write_jsonl(args.output, rows)
     print(f"Wrote {len(rows)} inference rows to {args.output}")
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(infer_main())
