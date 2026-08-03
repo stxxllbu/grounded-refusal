@@ -160,6 +160,9 @@ venv.bak/
 # Local-only helpers and run notes (not published)
 cli/
 
+# Generated inference output (not published)
+outputs/
+
 # Spyder project settings
 .spyderproject
 .spyproject

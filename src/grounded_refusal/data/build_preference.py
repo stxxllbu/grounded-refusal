@@ -14,22 +14,22 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from data.schema_pref import (
+from grounded_refusal.data.schema_pref import (
     NegativeType,
     PreferenceMetadata,
     PreferencePair,
 )
-from data.schema_qa import (
+from grounded_refusal.data.schema_qa import (
     Answerability,
     EvidenceChallengeTag,
     QAExample,
 )
-from util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
-from util.prompt_assembly import format_qa_prompt, load_prompt_config
+from grounded_refusal.util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
+from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_prompt_config
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_INPUT_PATH = _REPO_ROOT / "data" / "data_v1_pilot.jsonl"
 DEFAULT_OUTPUT_PATH = _REPO_ROOT / "data" / "preference_v1_pilot.jsonl"
 DEFAULT_PROMPT_CONFIG = _REPO_ROOT / "configs" / "prompts" / "default.yaml"

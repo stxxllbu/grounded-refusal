@@ -14,12 +14,12 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
+from grounded_refusal.util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
-DEFAULT_LAYER1_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot_layer1.jsonl"
-DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parents[2] / "data" / "data_v1_pilot.jsonl"
+DEFAULT_LAYER1_PATH = Path(__file__).resolve().parents[3] / "data" / "data_v1_pilot_layer1.jsonl"
+DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parents[3] / "data" / "data_v1_pilot.jsonl"
 
 # Pilot review set: answerable, unanswerable, known_world_conflict, partial, distractor_entity
 DEFAULT_ROW_IDS = ["ex_0021", "ex_0027", "ex_0042", "ex_0031", "ex_0053"]

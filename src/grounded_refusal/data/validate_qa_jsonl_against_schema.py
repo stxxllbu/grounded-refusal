@@ -12,8 +12,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from data.schema_qa import QAExample
-from util.io import read_jsonl
+from grounded_refusal.data.schema_qa import QAExample
+from grounded_refusal.util.io import read_jsonl
 
 
 def validate_qa_jsonl_against_schema(

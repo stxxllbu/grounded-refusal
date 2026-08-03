@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grounded-refusal"
+version = "0.1.0"
+description = "Evidence-grounded QA: answer, refuse, or partially answer based on provided evidence."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2",
+    "pyyaml",
+    "openai",
+]
+
+[project.optional-dependencies]
+inference = [
+    "torch",
+    "transformers",
+    "accelerate",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/grounded_refusal"]

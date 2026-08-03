@@ -5,9 +5,9 @@ from pathlib import Path
 
 import yaml
 
-from data.validate_qa_jsonl_against_schema import validate_qa_jsonl_against_schema
-from util.io import write_jsonl
-from util.prompt_assembly import format_qa_prompt, load_prompt_config
+from grounded_refusal.data.validate_qa_jsonl_against_schema import validate_qa_jsonl_against_schema
+from grounded_refusal.util.io import write_jsonl
+from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_prompt_config
 
 
 def infer_main(argv: list[str] | None = None) -> int:

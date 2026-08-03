@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from data.schema_qa import QAExample
+from grounded_refusal.data.schema_qa import QAExample
 
 
 def load_prompt_config(path: Path) -> dict:
