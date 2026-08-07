@@ -8,7 +8,7 @@ Evidence-grounded QA: answer from provided evidence, refuse when insufficient, p
 |------|--------|--------|--------|
 | 1 | Task + hand examples (20) | done | [`docs/reports/week1.md`](docs/reports/week1.md) |
 | 2 | Pilot QA + preference (50 + 50) | **pilot done**; full ~500 deferred | [`docs/reports/week2.md`](docs/reports/week2.md) |
-| 3 | Eval / base baseline | not started | — |
+| 3 | Eval / base baseline | **harness v1 done**; baseline run pending | [`docs/reports/week3.md`](docs/reports/week3.md) |
 
 ## Quick data pointers
 
