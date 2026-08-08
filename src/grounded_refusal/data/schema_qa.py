@@ -68,7 +68,10 @@ class QAExample(BaseModel):
                 raise ValueError(
                     "partial examples require question_decomposition and supported_subquestions"
                 )
-            unsupported = set(self.question_decomposition) - set(self.supported_subquestions)
-            if unsupported and not self.supported_subquestions:
+            decomposition = set(self.question_decomposition)
+            supported = set(self.supported_subquestions)
+            if not supported <= decomposition:
+                raise ValueError("supported_subquestions must be a subset of question_decomposition")
+            if not decomposition - supported:
                 raise ValueError("partial examples need at least one unsupported sub-question")
         return self
