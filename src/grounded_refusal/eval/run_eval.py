@@ -1,9 +1,10 @@
-"""Score model-output JSONL with the LLM judge and derive verdicts.
+"""Score model-output JSONL with the LLM judge and derive outcomes.
 
 GPT-4o extracts only predicted_behavior and is_faithful (judge.py);
-derive_verdict (verdict.py) maps those plus gold labels to a verdict.
-Mirrors build_preference.py's CLI shape: --input/--output/--overwrite,
---dry-run to smoke-test the pipeline without API calls, OPENAI_API_KEY check.
+verdict.py maps those plus gold answerability to two independent outcomes
+(abstention_outcome, partial_outcome) -- see docs/EVAL_METRICS.md. Mirrors
+build_preference.py's CLI shape: --input/--output/--overwrite, --dry-run to
+smoke-test the pipeline without API calls, OPENAI_API_KEY check.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from grounded_refusal.data.schema_qa import Answerability, EvidenceChallengeTag
 from grounded_refusal.eval.judge import DEFAULT_JUDGE_MODEL, judge_row
 from grounded_refusal.eval.metrics import aggregate
 from grounded_refusal.eval.schema_eval import EvalResult, JudgeOutput, ModelBehavior
-from grounded_refusal.eval.verdict import derive_verdict
+from grounded_refusal.eval.verdict import derive_abstention_outcome, derive_partial_outcome
 from grounded_refusal.util.io import read_jsonl, write_jsonl
 
 DEFAULT_API_BASE = "https://api.openai.com/v1"
@@ -70,12 +71,8 @@ def collect_judge_outputs(
 def score_row(row: dict, judge_output: JudgeOutput) -> EvalResult:
     answerability = Answerability(row["answerability"])
     evidence_challenge = [EvidenceChallengeTag(tag) for tag in row.get("evidence_challenge", [])]
-    verdict = derive_verdict(
-        answerability,
-        evidence_challenge,
-        judge_output.predicted_behavior,
-        judge_output.is_faithful,
-    )
+    abstention_outcome = derive_abstention_outcome(answerability, judge_output.predicted_behavior)
+    partial_outcome = derive_partial_outcome(answerability, judge_output.predicted_behavior)
     return EvalResult(
         id=row["id"],
         answerability=answerability,
@@ -83,7 +80,8 @@ def score_row(row: dict, judge_output: JudgeOutput) -> EvalResult:
         predicted_behavior=judge_output.predicted_behavior,
         is_faithful=judge_output.is_faithful,
         rationale=judge_output.rationale,
-        verdict=verdict,
+        abstention_outcome=abstention_outcome,
+        partial_outcome=partial_outcome,
         model_name=row.get("model_name"),
     )
 

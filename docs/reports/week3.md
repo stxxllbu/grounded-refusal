@@ -4,21 +4,25 @@
 
 | Item | Path | Notes |
 |------|------|-------|
-| Judge output / verdict schema | [`src/grounded_refusal/eval/schema_eval.py`](../../src/grounded_refusal/eval/schema_eval.py) | `ModelBehavior`, `JudgeOutput`, `EvalResult` |
-| Verdict logic | [`src/grounded_refusal/eval/verdict.py`](../../src/grounded_refusal/eval/verdict.py) | `derive_verdict` — pure function, no API calls |
-| Metrics aggregation | [`src/grounded_refusal/eval/metrics.py`](../../src/grounded_refusal/eval/metrics.py) | `aggregate` — slices by `answerability` |
+| Judge output / outcome schema | [`src/grounded_refusal/eval/schema_eval.py`](../../src/grounded_refusal/eval/schema_eval.py) | `ModelBehavior`, `JudgeOutput`, `EvalResult`, `AbstentionOutcome`, `PartialOutcome` |
+| Outcome logic | [`src/grounded_refusal/eval/verdict.py`](../../src/grounded_refusal/eval/verdict.py) | `derive_abstention_outcome`, `derive_partial_outcome` — two pure functions, no API calls |
+| Metrics aggregation | [`src/grounded_refusal/eval/metrics.py`](../../src/grounded_refusal/eval/metrics.py) | `aggregate` — three independent metric groups, no shared denominators |
 | Judge call | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | `judge_row` — GPT-4o, structured output, 6 few-shot anchors |
 | CLI | [`src/grounded_refusal/eval/run_eval.py`](../../src/grounded_refusal/eval/run_eval.py) | `python -m grounded_refusal.eval.run_eval` |
-| Regression tests | [`tests/test_verdict.py`](../../tests/test_verdict.py) | 14 cases, all passing |
+| Regression tests | [`tests/test_verdict.py`](../../tests/test_verdict.py) | 20 cases, all passing |
+| Metrics design doc | [`docs/EVAL_METRICS.md`](../EVAL_METRICS.md) | Full spec, rationale, and literature references |
 
 ## Design (summary)
 
-Two-stage LLM-judge, following industry-standard practice of keeping the judge's task atomic and letting deterministic code own the taxonomy:
+Two-stage LLM-judge, following industry-standard practice of keeping the judge's task atomic and letting deterministic code own the metrics. Full spec: [`docs/EVAL_METRICS.md`](../EVAL_METRICS.md); short version:
 
 1. **GPT-4o extracts only two orthogonal signals** per row — `predicted_behavior` (`answer` / `refuse` / `partial`) and `is_faithful` (bool: are all claims grounded in the evidence?). The judge never sees the gold `answerability` label, so it can't pattern-match a label — it independently assesses behavior and grounding from `evidence` + `question` + `model_output` alone.
-2. **Python derives the verdict deterministically** from `(gold answerability, gold evidence_challenge, predicted_behavior, is_faithful)`. This mirrors `build_preference.py`'s `choose_negative_type`, but keyed on *observed* model behavior rather than *construction* intent — the same taxonomy (`correct` / `over_refusal` / `hallucination` / `distractor_confusion` / `over_complete` / `memory_override`), plus `anomaly` for combinations outside the pilot map, so unexpected model behavior is flagged rather than silently forced into the nearest category.
+2. **Python derives two independent outcomes**, each a pure function of only the fields it actually needs:
+   - `derive_abstention_outcome(answerability, predicted_behavior)` — a standard TP/FP/TN/FN confusion matrix for "should this row have been refused?" (SQuAD 2.0 / Abstain-QA style), strictly limited to `answerable`/`unanswerable` rows. `over_refusal_rate` is literally this matrix's false-positive rate.
+   - `derive_partial_outcome(answerability, predicted_behavior)` — `match` / `under_deliver` / `over_deliver` for `partial` rows, kept fully separate from the abstention matrix rather than forced in as a 3rd class (which would break the 2×2 precision/recall/F1 semantics).
+3. **Hallucination rate is a third, separate calculation** — filtered to rows where `predicted_behavior ∈ {answer, partial}` (did the model assert anything checkable?), then `is_faithful` within that filtered set. Never uses `answerability` or `evidence_challenge`.
 
-Full rationale and bias-mitigation notes (position bias avoided by using pointwise not pairwise judging, self-enhancement bias avoided by judging a 3B model with a GPT-4o judge, verbosity-bias risk specific to `over_complete`) were worked out in conversation; not duplicated here.
+An earlier attempt collapsed all of this into one `derive_verdict()` function producing a 7-category taxonomy (`correct`/`over_refusal`/`hallucination`/`distractor_confusion`/`over_complete`/`memory_override`/`anomaly`) borrowed from `build_preference.py`'s `choose_negative_type`. It was discarded — see [`docs/EVAL_METRICS.md`](../EVAL_METRICS.md#where-did-evidence_challenge-go) for why (the `anomaly` bucket conflated genuine logical impossibilities with ordinary unnamed failures, and the taxonomy wasn't how the field actually reports this — see the doc's references).
 
 ## Pipeline
 
@@ -27,13 +31,16 @@ outputs/*.jsonl              (baseline inference, from cli.py infer_main)
         ↓
 judge_row()                  predicted_behavior + is_faithful   (GPT-4o, temperature=0)
         ↓
-derive_verdict()             correct / over_refusal / hallucination /
-                              distractor_confusion / over_complete /
-                              memory_override / anomaly
+derive_abstention_outcome()  true_positive / false_positive /
+                              true_negative / false_negative
+                              (answerable/unanswerable rows only)
+derive_partial_outcome()     match / under_deliver / over_deliver
+                              (partial rows only)
         ↓
-aggregate()                  answer_accuracy, abstention_rate,
-                              over_refusal_rate, unsupported_claim_rate,
-                              anomaly_rate
+aggregate()                  abstention_recall, abstention_precision,
+                              over_refusal_rate, hallucination_rate,
+                              partial_match_rate, partial_under_deliver_rate,
+                              partial_over_deliver_rate
 ```
 
 ## How to run
@@ -73,11 +80,11 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --overwrite
 ```
 
-Output: one `EvalResult` row per scored example in `--output`, plus the four headline metrics printed as JSON to stdout. `--max-workers` controls judge-call concurrency (default 4); `--limit` caps how many selected rows are scored.
+Output: one `EvalResult` row per scored example in `--output`, plus up to seven metrics printed as JSON to stdout (`abstention_recall`, `abstention_precision`, `over_refusal_rate`, `hallucination_rate`, `partial_match_rate`, `partial_under_deliver_rate`, `partial_over_deliver_rate` — each key present only if its underlying row count is non-zero). `--max-workers` controls judge-call concurrency (default 4); `--limit` caps how many selected rows are scored.
 
 ## Validation
 
-`tests/test_verdict.py` — 14 pytest cases anchored on `PREFERENCE_GENERATION_PROTOCOL.md`'s five worked examples (both `chosen` and `rejected` halves of `pref_0021`/`0042`/`0026`/`0051`/`0031`), plus the two edge cases the protocol's FAQ already flags (`known_world_conflict` refused, `partial` refused outright), plus two anomaly guards. `derive_verdict` is a pure function, so this is fully deterministic — no LLM calls, no flakiness.
+`tests/test_verdict.py` — 20 pytest cases anchored on `PREFERENCE_GENERATION_PROTOCOL.md`'s five worked examples (both `chosen` and `rejected` halves of `pref_0021`/`0042`/`0026`/`0051`/`0031`), covering both `derive_abstention_outcome` and `derive_partial_outcome`, including the "partial rows never enter the abstention matrix" exclusion cases. Both functions are pure, so this is fully deterministic — no LLM calls, no flakiness.
 
 ```bash
 PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_verdict.py -v

@@ -1,4 +1,8 @@
-"""Eval judge output and derived verdict contract (Pydantic)."""
+"""Eval judge output and derived-outcome contract (Pydantic).
+
+Design: docs/EVAL_METRICS.md. Two independent outcome types, computed by
+separate pure functions in verdict.py -- never merged into one verdict field.
+"""
 
 from __future__ import annotations
 
@@ -29,19 +33,22 @@ class JudgeOutput(BaseModel):
     rationale: str
 
 
-VerdictLabel = Literal[
-    "correct",
-    "over_refusal",
-    "hallucination",
-    "distractor_confusion",
-    "over_complete",
-    "memory_override",
-    "anomaly",
+# Abstention confusion matrix outcome (answerable/unanswerable rows only).
+# None when answerability == partial -- those rows never enter this matrix.
+AbstentionOutcome = Literal[
+    "true_positive",
+    "false_positive",
+    "true_negative",
+    "false_negative",
 ]
+
+# Partial sub-metric outcome (partial rows only).
+# None when answerability != partial.
+PartialOutcome = Literal["match", "under_deliver", "over_deliver"]
 
 
 class EvalResult(BaseModel):
-    """One scored row: gold labels + judge output + derived verdict."""
+    """One scored row: gold labels + judge output + the two independent outcomes."""
 
     id: str
     answerability: Answerability
@@ -49,5 +56,6 @@ class EvalResult(BaseModel):
     predicted_behavior: ModelBehavior
     is_faithful: bool
     rationale: str
-    verdict: VerdictLabel
+    abstention_outcome: AbstentionOutcome | None = None
+    partial_outcome: PartialOutcome | None = None
     model_name: str | None = None
