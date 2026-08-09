@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         "--input",
         type=Path,
         required=True,
-        help="Model-output JSONL, e.g. outputs/base_pilot.jsonl (from cli.py infer_main)",
+        help="Model-output JSONL, e.g. outputs/base_pilot.jsonl (from inference/run_inference.py infer_main)",
     )
     parser.add_argument("--output", type=Path, default=None, help="Write EvalResult JSONL")
     parser.add_argument(
