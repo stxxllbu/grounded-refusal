@@ -19,6 +19,9 @@ inference = [
     "transformers",
     "accelerate",
 ]
+dev = [
+    "pytest",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/grounded_refusal"]
