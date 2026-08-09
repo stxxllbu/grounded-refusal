@@ -57,7 +57,7 @@ def infer_main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        from grounded_refusal.inference import run_batch_inference
+        from grounded_refusal.inference.hf_backend import run_batch_inference
     except ImportError as exc:
         raise SystemExit(
             "Inference dependencies missing. Install with: pip install -e '.[inference]'"

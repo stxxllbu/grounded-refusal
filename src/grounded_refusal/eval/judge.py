@@ -1,7 +1,7 @@
 """LLM judge: classify model_output behavior + faithfulness against evidence.
 
 The judge sees the assembled prompt (Evidence/Question/Instruction, already
-built by cli.py's inference run) and the model's response only -- never the
+built by inference/run_inference.py's inference run) and the model's response only -- never the
 gold answerability/evidence_challenge labels, so it independently assesses
 grounding rather than pattern-matching a label. Python (verdict.py) turns
 this plus the gold labels into a verdict; the judge never decides verdict

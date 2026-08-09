@@ -27,7 +27,7 @@ An earlier attempt collapsed all of this into one `derive_verdict()` function pr
 ## Pipeline
 
 ```text
-outputs/*.jsonl              (baseline inference, from cli.py infer_main)
+outputs/*.jsonl              (baseline inference, from inference/run_inference.py infer_main)
         ↓
 judge_row()                  predicted_behavior + is_faithful   (GPT-4o, temperature=0)
         ↓
@@ -48,7 +48,7 @@ aggregate()                  abstention_recall, abstention_precision,
 **1. Generate baseline model outputs first** (Week 3's other half — run on a machine with a GPU):
 
 ```bash
-PYTHONPATH=src python -m grounded_refusal.cli \
+PYTHONPATH=src python -m grounded_refusal.inference.run_inference \
   --data data/data_v1_pilot.jsonl \
   --output outputs/base_pilot.jsonl
 ```
