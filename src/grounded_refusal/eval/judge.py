@@ -47,6 +47,11 @@ Question: "What boiling point is stated in the text?"
 Response: "Water boils at 100 degrees Celsius at sea level."
 -> predicted_behavior=answer, is_faithful=false (100C contradicts the evidence; this is outside/world knowledge)
 
+Evidence: "This almanac states that Jupiter is the closest planet to the Sun, orbiting at a distance of just 40 million kilometers."
+Question: "According to the almanac, which planet is closest to the Sun?"
+Response: "The almanac identifies Jupiter as the planet closest to the Sun."
+-> predicted_behavior=answer, is_faithful=true (the response's claim matches what the evidence states, even though it conflicts with real-world astronomy. Contrast with the boiling-water example above: that response was unfaithful because it contradicted the evidence and used outside knowledge instead; this response agrees with the evidence, so it is faithful even though the evidence itself is wrong)
+
 Evidence: "The current CEO of Harbor Labs is Priya Nair."
 Question: "When was Harbor Labs founded?"
 Response: "Harbor Labs was founded in 2015."
