@@ -3,7 +3,7 @@
 How we build QA JSONL: `data/hand_examples.jsonl`, `data/data_v1_pilot_layer1.jsonl`, `data/data_v1_pilot.jsonl`, and later `data/data_v1.jsonl`.
 
 **Label values:** [`DATA_LABELS.md`](DATA_LABELS.md).  
-**Schema:** [`src/data/schema_qa.py`](../src/data/schema_qa.py).  
+**Schema:** [`src/grounded_refusal/data/schema_qa.py`](../src/grounded_refusal/data/schema_qa.py).  
 **Preference pairs:** [`PREFERENCE_GENERATION_PROTOCOL.md`](PREFERENCE_GENERATION_PROTOCOL.md).
 
 ---
@@ -56,11 +56,11 @@ data_v1_pilot.jsonl  (or later data_v1.jsonl)
 
 | Step | What it does | Where |
 |------|----------------|-------|
-| Contract | Field types and enums | [`schema_qa.py`](../src/data/schema_qa.py) |
+| Contract | Field types and enums | [`schema_qa.py`](../src/grounded_refusal/data/schema_qa.py) |
 | Layer 1 | Template rows; correct by construction | `data/data_v1_pilot_layer1.jsonl` (no dedicated builder script yet) |
-| Layer 2 | Rephrase the three text fields only | [`paraphrase.py`](../src/data/paraphrase.py) → `data/data_v1_pilot.jsonl` |
-| Validate | JSON shape / enums / partial rules | [`validate_qa_jsonl_against_schema.py`](../src/data/validate_qa_jsonl_against_schema.py) |
-| IO | Read/write JSONL | [`util/io.py`](../src/util/io.py) |
+| Layer 2 | Rephrase the three text fields only | [`paraphrase.py`](../src/grounded_refusal/data/paraphrase.py) → `data/data_v1_pilot.jsonl` |
+| Validate | JSON shape / enums / partial rules | [`validate_qa_jsonl_against_schema.py`](../src/grounded_refusal/data/validate_qa_jsonl_against_schema.py) |
+| IO | Read/write JSONL | [`util/io.py`](../src/grounded_refusal/util/io.py) |
 
 **Layer 1** locks semantics: `answerability`, the tested fact, what the question asks, gold answer behavior, and partial decomposition fields when needed. Wording is intentionally dry. Set `metadata.creation_process` to `template_rule` when applicable.
 
@@ -199,7 +199,7 @@ They are one semantic unit. If only evidence/question become natural and `refere
 - SFT sees mismatched style inside one example.
 - Later DPO can reward style (fluent `rejected` vs stiff `chosen`) instead of grounding.
 
-Layer 2 therefore rewrites all three in one API call ([`paraphrase.py`](../src/data/paraphrase.py)).
+Layer 2 therefore rewrites all three in one API call ([`paraphrase.py`](../src/grounded_refusal/data/paraphrase.py)).
 
 ### What may Layer 2 change?
 
@@ -208,7 +208,7 @@ Layer 2 therefore rewrites all three in one API call ([`paraphrase.py`](../src/d
 
 ### What is fact-lock?
 
-After paraphrase, check that entities, numeric values, asked field, and accept/refuse behavior still match Layer 1. Pilot relied on human review; automated fact-lock is TODO. Schema validation only checks field shape/enums ([`validate_qa_jsonl_against_schema.py`](../src/data/validate_qa_jsonl_against_schema.py)).
+After paraphrase, check that entities, numeric values, asked field, and accept/refuse behavior still match Layer 1. Pilot relied on human review; automated fact-lock is TODO. Schema validation only checks field shape/enums ([`validate_qa_jsonl_against_schema.py`](../src/grounded_refusal/data/validate_qa_jsonl_against_schema.py)).
 
 ### What prompt does Layer 2 use?
 

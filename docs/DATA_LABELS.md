@@ -1,6 +1,6 @@
 # Data labels
 
-Definitions for fields on each QA row in `data/*.jsonl`. **Edit here first**, then update schemas (`src/data/schema_qa.py`).
+Definitions for fields on each QA row in `data/*.jsonl`. **Edit here first**, then update schemas (`src/grounded_refusal/data/schema_qa.py`).
 
 Full rows: `data/hand_examples.jsonl` (pilot: `data/data_v1_pilot.jsonl`).
 

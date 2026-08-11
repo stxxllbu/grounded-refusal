@@ -7,11 +7,11 @@
 | Layer 1 QA (templates) | [`data/data_v1_pilot_layer1.jsonl`](../../data/data_v1_pilot_layer1.jsonl) | 50 |
 | Layer 2 QA (paraphrase) | [`data/data_v1_pilot.jsonl`](../../data/data_v1_pilot.jsonl) | 50 |
 | Preference pairs | [`data/preference_v1_pilot.jsonl`](../../data/preference_v1_pilot.jsonl) | 50 |
-| QA schema | [`src/data/schema_qa.py`](../../src/data/schema_qa.py) | — |
-| Preference schema | [`src/data/schema_pref.py`](../../src/data/schema_pref.py) | — |
-| QA validator | [`src/data/validate_qa_jsonl_against_schema.py`](../../src/data/validate_qa_jsonl_against_schema.py) | — |
-| Layer 2 script | [`src/data/paraphrase.py`](../../src/data/paraphrase.py) | — |
-| Preference builder | [`src/data/build_preference.py`](../../src/data/build_preference.py) | — |
+| QA schema | [`src/grounded_refusal/data/schema_qa.py`](../../src/grounded_refusal/data/schema_qa.py) | — |
+| Preference schema | [`src/grounded_refusal/data/schema_pref.py`](../../src/grounded_refusal/data/schema_pref.py) | — |
+| QA validator | [`src/grounded_refusal/data/validate_qa_jsonl_against_schema.py`](../../src/grounded_refusal/data/validate_qa_jsonl_against_schema.py) | — |
+| Layer 2 script | [`src/grounded_refusal/data/paraphrase.py`](../../src/grounded_refusal/data/paraphrase.py) | — |
+| Preference builder | [`src/grounded_refusal/data/build_preference.py`](../../src/grounded_refusal/data/build_preference.py) | — |
 | Protocol | [`QA_GENERATION_PROTOCOL.md`](../QA_GENERATION_PROTOCOL.md), [`PREFERENCE_GENERATION_PROTOCOL.md`](../PREFERENCE_GENERATION_PROTOCOL.md) | — |
 
 IDs: QA `ex_0021`–`ex_0070`; preference `pref_0021`–`pref_0070` (1:1 via `base_example_id`).
@@ -101,14 +101,14 @@ Counts match the QA slice table above (same 1–5 map as in the generation proto
 
 | Check | What it covers | What it does **not** cover |
 |-------|----------------|----------------------------|
-| [`validate_qa_jsonl_against_schema.py`](../../src/data/validate_qa_jsonl_against_schema.py) + `QAExample` | QA field shape, enums, partial-field rules | Fact-lock Layer1↔Layer2, answer quality, paraphrase fidelity |
+| [`validate_qa_jsonl_against_schema.py`](../../src/grounded_refusal/data/validate_qa_jsonl_against_schema.py) + `QAExample` | QA field shape, enums, partial-field rules | Fact-lock Layer1↔Layer2, answer quality, paraphrase fidelity |
 | `PreferencePair` in `build_preference.py` | Preference field shape + `negative_type` enum when pairs are built | Whether `rejected` text truly matches the intended failure mode |
 
 Run QA schema check (example):
 
 ```bash
 export PYTHONPATH="$PWD/src"
-.venv/bin/python -m data.validate_qa_jsonl_against_schema data/data_v1_pilot.jsonl
+.venv/bin/python -m grounded_refusal.data.validate_qa_jsonl_against_schema data/data_v1_pilot.jsonl
 ```
 
 Preference rows are validated as they are constructed (`PreferencePair(...)`). Human review is still needed for `rejected` quality (especially `memory_override`).

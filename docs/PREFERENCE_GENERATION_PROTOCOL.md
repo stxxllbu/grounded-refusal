@@ -4,7 +4,7 @@ How we build preference JSONL from approved QA rows: `data/preference_v1_pilot.j
 
 **QA construction (must be done first):** [`QA_GENERATION_PROTOCOL.md`](QA_GENERATION_PROTOCOL.md).  
 **QA labels:** [`DATA_LABELS.md`](DATA_LABELS.md).  
-**Schema:** [`src/data/schema_pref.py`](../src/data/schema_pref.py) (`PreferencePair`, `NegativeType`).
+**Schema:** [`src/grounded_refusal/data/schema_pref.py`](../src/grounded_refusal/data/schema_pref.py) (`PreferencePair`, `NegativeType`).
 
 Each preference row is one DPO training pair derived from an approved QA row and linked to it through `base_example_id`. Preference generation does not rebuild or relabel the QA data.
 
@@ -64,11 +64,11 @@ write preference_*.jsonl
 | Stage | What it does | Where |
 |-------|--------------|-------|
 | Input QA | Read approved Layer 2 (or full) QA rows | [`data_v1_pilot.jsonl`](../data/data_v1_pilot.jsonl); later `data/data_v1.jsonl` |
-| Select `negative_type` | Map QA labels to one failure mode | [`build_preference.py`](../src/data/build_preference.py) → `choose_negative_type` |
-| Assemble `prompt` / `chosen` | Format `prompt`; copy `reference_answer` to `chosen` | [`build_preference.py`](../src/data/build_preference.py) → `format_preference_prompt`; [`default.yaml`](../configs/prompts/default.yaml) |
-| Generate `rejected` | Generate a bad answer for the selected failure mode | [`build_preference.py`](../src/data/build_preference.py) → `generate_rejected` |
-| Validate pair | Validate field shape and enum values | [`schema_pref.py`](../src/data/schema_pref.py) → `PreferencePair` |
-| Write output | Write validated pairs to JSONL | [`util/io.py`](../src/util/io.py) → [`preference_v1_pilot.jsonl`](../data/preference_v1_pilot.jsonl); later `data/preference_v1.jsonl` |
+| Select `negative_type` | Map QA labels to one failure mode | [`build_preference.py`](../src/grounded_refusal/data/build_preference.py) → `choose_negative_type` |
+| Assemble `prompt` / `chosen` | Format `prompt`; copy `reference_answer` to `chosen` | [`build_preference.py`](../src/grounded_refusal/data/build_preference.py) → `format_qa_prompt` (shared with inference, in `util/prompt_assembly.py`); [`default.yaml`](../configs/prompts/default.yaml) |
+| Generate `rejected` | Generate a bad answer for the selected failure mode | [`build_preference.py`](../src/grounded_refusal/data/build_preference.py) → `generate_rejected` |
+| Validate pair | Validate field shape and enum values | [`schema_pref.py`](../src/grounded_refusal/data/schema_pref.py) → `PreferencePair` |
+| Write output | Write validated pairs to JSONL | [`util/io.py`](../src/grounded_refusal/util/io.py) → [`preference_v1_pilot.jsonl`](../data/preference_v1_pilot.jsonl); later `data/preference_v1.jsonl` |
 
 Python decides `negative_type` and system instructions; the API returns **only** `rejected` text. Details: **FAQ**.
 
@@ -242,7 +242,7 @@ Distributions: [`reports/week2.md`](reports/week2.md).
 **Workflow**
 
 1. Freeze / approve the QA file used as the base.
-2. Run [`build_preference.py`](../src/data/build_preference.py) (map type → API `rejected` → validate → write).
+2. Run [`build_preference.py`](../src/grounded_refusal/data/build_preference.py) (map type → API `rejected` → validate → write).
 3. Human-review a sample across all five slices (especially `memory_override`).
 4. Fix the map or generation instructions if needed, then scale with the same process.
 
