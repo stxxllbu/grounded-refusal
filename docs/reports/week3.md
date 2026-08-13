@@ -11,7 +11,7 @@ Two subsystems, built this week — inference (2 files) and the eval harness (7 
 | Item | Path | Notes |
 |------|------|-------|
 | Base-model inference CLI | [`src/grounded_refusal/inference/run_inference.py`](../../src/grounded_refusal/inference/run_inference.py) | `infer_main` — validates QA data, assembles prompts, writes `model_output` |
-| Inference backend | [`src/grounded_refusal/inference/hf_backend.py`](../../src/grounded_refusal/inference/hf_backend.py) | `run_batch_inference` — HF transformers/torch, lazy-imported so `--dry-run` needs no GPU deps |
+| Inference backend | [`src/grounded_refusal/inference/hf_backend.py`](../../src/grounded_refusal/inference/hf_backend.py) | `run_sequential_inference` — HF transformers/torch, lazy-imported so `--dry-run` needs no GPU deps |
 | Judge output / outcome schema | [`src/grounded_refusal/eval/schema_eval.py`](../../src/grounded_refusal/eval/schema_eval.py) | `ModelBehavior`, `JudgeOutput`, `EvalResult`, `AbstentionOutcome`, `PartialOutcome` |
 | Outcome logic | [`src/grounded_refusal/eval/verdict.py`](../../src/grounded_refusal/eval/verdict.py) | `derive_abstention_outcome`, `derive_partial_outcome` — two pure functions, no API calls |
 | Metrics aggregation | [`src/grounded_refusal/eval/metrics.py`](../../src/grounded_refusal/eval/metrics.py) | `aggregate` — three independent metric groups, no shared denominators |

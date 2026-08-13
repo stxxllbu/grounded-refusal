@@ -57,14 +57,14 @@ def infer_main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        from grounded_refusal.inference.hf_backend import run_batch_inference
+        from grounded_refusal.inference.hf_backend import run_sequential_inference
     except ImportError as exc:
         raise SystemExit(
             "Inference dependencies missing. Install with: pip install -e '.[inference]'"
         ) from exc
 
     max_new_tokens = args.max_new_tokens or model_cfg.get("max_new_tokens", 256)
-    outputs = run_batch_inference(
+    outputs = run_sequential_inference(
         prompts=[r["prompt"] for r in rows],
         model_name=model_cfg["model_name"],
         max_new_tokens=max_new_tokens,

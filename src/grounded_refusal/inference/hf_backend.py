@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-def run_batch_inference(
+def run_sequential_inference(
     prompts: list[str],
     *,
     model_name: str,
@@ -9,6 +9,7 @@ def run_batch_inference(
     temperature: float = 0.0,
     device_map: str = "auto",
 ) -> list[str]:
+    """Run inference one prompt at a time (no batching -- fine at pilot scale)."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
