@@ -159,6 +159,7 @@ venv.bak/
 
 # Local-only helpers and run notes (not published)
 cli/
+learning/
 
 
 # Spyder project settings
