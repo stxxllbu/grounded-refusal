@@ -1,0 +1,21 @@
+# LoRA SFT config. Batch/memory settings tuned for a 16GB GPU
+# (RTX 5060 Ti) — see docs/reports for the memory estimate this is based on.
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["q_proj", "v_proj"]
+  task_type: CAUSAL_LM
+
+training:
+  output_dir: runs/sft_v1
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 8  # effective batch size 16, without holding 16 examples' activations at once
+  gradient_checkpointing: true    # trade compute time for activation memory — needed at 16GB
+  learning_rate: 2.0e-4           # LoRA typically wants a higher LR than full fine-tuning (fresh A/B params)
+  logging_steps: 2                # ~36-39 total steps on the v1 pilot; default 500 would never log
+  save_strategy: "no"             # only 50 rows — just save the final adapter, no mid-run checkpoints
+  bf16: true
+  max_seq_length: 512
+  seed: 42

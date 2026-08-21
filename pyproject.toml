@@ -19,6 +19,14 @@ inference = [
     "transformers",
     "accelerate",
 ]
+train = [
+    "torch",
+    "transformers",
+    "accelerate",
+    "peft",
+    "trl",
+    "datasets",
+]
 dev = [
     "pytest",
 ]
