@@ -1,5 +1,5 @@
 # LoRA SFT config. Batch/memory settings tuned for a 16GB GPU
-# (RTX 5060 Ti) — see docs/reports for the memory estimate this is based on.
+# (RTX 5060 Ti) — see docs/GPU_MEMORY_ESTIMATE.md for the estimate this is based on.
 
 lora:
   r: 16
