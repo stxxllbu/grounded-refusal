@@ -21,7 +21,7 @@ def infer_main(argv: list[str] | None = None) -> int:
         "--adapter",
         type=Path,
         default=None,
-        help="LoRA adapter dir to load on top of --model-config's base model (e.g. runs/sft_v1)",
+        help="LoRA adapter dir to load on top of --model-config's base model (e.g. checkpoints/20260823_151044_lora)",
     )
     parser.add_argument("--dry-run", action="store_true", help="Format prompts only; skip model.")
     args = parser.parse_args(argv)

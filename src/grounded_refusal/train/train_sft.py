@@ -10,6 +10,7 @@ and scored with eval/run_eval.py for the SFT row of the headline table.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 from datasets import Dataset
@@ -57,7 +58,7 @@ def train_sft_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data", type=Path, default=Path("data/data_v1_pilot.jsonl"))
     parser.add_argument("--prompt-config", type=Path, default=Path("configs/prompts/default.yaml"))
     parser.add_argument("--model-config", type=Path, default=Path("configs/models/base.yaml"))
-    parser.add_argument("--train-config", type=Path, default=Path("configs/train/sft_v1.yaml"))
+    parser.add_argument("--train-config", type=Path, default=Path("configs/train/lora.yaml"))
     args = parser.parse_args(argv)
 
     examples, errors = validate_qa_jsonl_against_schema(args.data)
@@ -82,6 +83,14 @@ def train_sft_main(argv: list[str] | None = None) -> int:
 
     train_cfg = load_yaml_config(args.train_config)
     lora_config = LoraConfig(**train_cfg["lora"])
+
+    # Prefix a run timestamp onto output_dir so repeat runs of the same config
+    # get their own directory instead of silently overwriting the last one.
+    base_output_dir = Path(train_cfg["training"]["output_dir"])
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    train_cfg["training"]["output_dir"] = str(
+        base_output_dir.parent / f"{timestamp}_{base_output_dir.name}"
+    )
     sft_config = SFTConfig(**train_cfg["training"])
 
     model_cfg = load_yaml_config(args.model_config)

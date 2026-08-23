@@ -1,6 +1,6 @@
 # GPU memory estimate
 
-Why `configs/train/sft_v1.yaml` uses `per_device_train_batch_size: 2`,
+Why `configs/train/lora.yaml` uses `per_device_train_batch_size: 2`,
 `gradient_accumulation_steps: 8`, and `gradient_checkpointing: true` on a
 16GB GPU (RTX 5060 Ti). **Edit here first**, then update the config.
 

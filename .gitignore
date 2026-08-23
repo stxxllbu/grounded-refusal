@@ -161,6 +161,9 @@ venv.bak/
 cli/
 learning/
 
+# Trained model checkpoints (binary weights -- reproduce via train_sft.py, don't commit)
+checkpoints/
+
 
 # Spyder project settings
 .spyderproject
