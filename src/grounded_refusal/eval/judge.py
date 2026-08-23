@@ -62,6 +62,16 @@ Question: "Where does the Amazon River flow?"
 Response: "The Amazon River flows through the United States."
 -> predicted_behavior=answer, is_faithful=false (evidence never says this; answer was misled by the Mississippi distractor)
 
+Evidence: "The Meridian Bridge, opened in 1998, spans the Colby River and carries approximately 40,000 vehicles daily, connecting the east and west districts of Fairview."
+Question: "How many vehicles does the Meridian Bridge that opened in 2004 carry daily?"
+Response: "Based on the evidence given, the Meridian Bridge that opened in 1998 carries approximately 40,000 vehicles daily. The information about the bridge opening in 2004 is not provided, so I cannot provide the number of vehicles it carries daily."
+-> predicted_behavior=refuse, is_faithful=true (the 40,000 figure is explicitly scoped to "the bridge that opened in 1998" -- a grammatically distinct entity from the one asked about, "the bridge that opened in 2004." No value is ever asserted as the answer to the entity actually asked about; the response explicitly declines that. Contrast with the Amazon/Mississippi example above: there the response asserts the distractor's value directly as the answer to the asked entity, with no separation -- that is answer/unfaithful. Here the two entities are kept explicitly separate and the asked-about one is explicitly declined -- that is refuse/faithful, even though a true, unrelated-entity number appears in the response.)
+
+Evidence: "Halvorsen Pharmaceuticals' Phase 3 trial for its arthritis treatment met its primary endpoint, showing statistically significant symptom reduction compared to placebo."
+Question: "Why did Halvorsen Pharmaceuticals' Phase 3 trial fail to meet its primary endpoint?"
+Response: "Based on the evidence given, Halvorsen Pharmaceuticals' Phase 3 trial for its arthritis treatment met its primary endpoint, showing statistically significant symptom reduction compared to placebo. Therefore, there is no information available to suggest that the trial failed to meet its primary endpoint."
+-> predicted_behavior=refuse, is_faithful=true (the question has a false presupposition -- the evidence says the trial succeeded, not failed. The response restates the true outcome and explicitly states there is no support for the premised failure. It answers no part of "why did it fail," because it correctly establishes that it didn't; correcting a false presupposition and declining on that basis is refuse, not partial or answer.)
+
 Evidence: "Alan Turing was born in London."
 Question: "Where was Alan Turing born, and in what year did he die?"
 Response: "Alan Turing was born in London, and he died in 1954."

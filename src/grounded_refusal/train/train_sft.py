@@ -27,7 +27,14 @@ def build_prompt_completion_rows(
     evidence_label: str,
     question_label: str,
 ) -> list[dict]:
-    """One {"prompt": ..., "completion": ...} dict per QA row, for SFTTrainer."""
+    """One conversational {"prompt": [...], "completion": [...]} dict per QA row.
+
+    Conversational (role/content) form, not plain strings, so SFTTrainer applies
+    the tokenizer's chat template -- matching hf_backend.py's inference-time
+    apply_chat_template. Plain strings would train on raw concatenated text with
+    no chat special tokens, silently mismatched with how the model is prompted
+    at inference.
+    """
     rows: list[dict] = []
     for ex in examples:
         prompt = format_qa_prompt(
@@ -36,7 +43,12 @@ def build_prompt_completion_rows(
             evidence_label=evidence_label,
             question_label=question_label,
         )
-        rows.append({"prompt": prompt, "completion": ex.reference_answer})
+        rows.append(
+            {
+                "prompt": [{"role": "user", "content": prompt}],
+                "completion": [{"role": "assistant", "content": ex.reference_answer}],
+            }
+        )
     return rows
 
 

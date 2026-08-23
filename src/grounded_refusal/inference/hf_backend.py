@@ -8,8 +8,13 @@ def run_sequential_inference(
     max_new_tokens: int = 256,
     temperature: float = 0.0,
     device_map: str = "auto",
+    adapter_path: str | None = None,
 ) -> list[str]:
-    """Run inference one prompt at a time (no batching -- fine at pilot scale)."""
+    """Run inference one prompt at a time (no batching -- fine at pilot scale).
+
+    ``adapter_path``, if given, loads a LoRA adapter (e.g. from train_sft.py's
+    output_dir) on top of the frozen base model via peft.
+    """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -19,6 +24,10 @@ def run_sequential_inference(
         torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
         device_map=device_map,
     )
+    if adapter_path is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter_path)
 
     outputs: list[str] = []
     for prompt in prompts:

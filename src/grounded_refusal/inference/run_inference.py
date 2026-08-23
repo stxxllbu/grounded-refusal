@@ -17,6 +17,12 @@ def infer_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-config", type=Path, default=Path("configs/models/base.yaml"))
     parser.add_argument("--output", type=Path, default=Path("outputs/base_hand_examples.jsonl"))
     parser.add_argument("--max-new-tokens", type=int, default=None)
+    parser.add_argument(
+        "--adapter",
+        type=Path,
+        default=None,
+        help="LoRA adapter dir to load on top of --model-config's base model (e.g. runs/sft_v1)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Format prompts only; skip model.")
     args = parser.parse_args(argv)
 
@@ -70,10 +76,14 @@ def infer_main(argv: list[str] | None = None) -> int:
         max_new_tokens=max_new_tokens,
         temperature=model_cfg.get("temperature", 0.0),
         device_map=model_cfg.get("device_map", "auto"),
+        adapter_path=str(args.adapter) if args.adapter else None,
     )
+    model_name = model_cfg["model_name"]
+    if args.adapter:
+        model_name = f"{model_name}+lora:{args.adapter}"
     for row, output in zip(rows, outputs, strict=True):
         row["model_output"] = output
-        row["model_name"] = model_cfg["model_name"]
+        row["model_name"] = model_name
 
     write_jsonl(args.output, rows)
     print(f"Wrote {len(rows)} inference rows to {args.output}")

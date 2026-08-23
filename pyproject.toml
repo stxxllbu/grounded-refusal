@@ -18,6 +18,7 @@ inference = [
     "torch",
     "transformers",
     "accelerate",
+    "peft",
 ]
 train = [
     "torch",
