@@ -19,6 +19,7 @@ Evidence-grounded QA: answer from provided evidence, refuse when insufficient, p
 | [`data/data_v1_pilot.jsonl`](data/data_v1_pilot.jsonl) | 50 | Week 2 Layer 2 paraphrased QA |
 | [`data/preference_v1_pilot.jsonl`](data/preference_v1_pilot.jsonl) | 50 | Week 2 DPO pairs (1:1 with Layer 2) |
 | [`data/data_v2_pilot.jsonl`](data/data_v2_pilot.jsonl) | 55 | Week 3 hand-built adversarial stress test |
+| [`data/data_v2.jsonl`](data/data_v2.jsonl) | 600 | `data_v2_pilot` extended to 600 rows, weighted toward empirically-validated high-failure-rate mechanisms — see [`docs/DATA_V2_EXTENSION.md`](docs/DATA_V2_EXTENSION.md) |
 
 **Week 2 pilot mix (QA):** 20 answerable / 20 unanswerable / 10 partial.  
 **Week 2 pilot mix (preference):** 17 over_refusal / 10 hallucination / 10 distractor_confusion / 10 over_complete / 3 memory_override.  
@@ -33,6 +34,7 @@ Full distributions, schemas, and pipeline notes: see the week reports above.
 | [`docs/DATA_LABELS.md`](docs/DATA_LABELS.md) | `answerability`, `evidence_type`, `evidence_challenge` |
 | [`docs/QA_GENERATION_PROTOCOL.md`](docs/QA_GENERATION_PROTOCOL.md) | How QA rows are built |
 | [`docs/PREFERENCE_GENERATION_PROTOCOL.md`](docs/PREFERENCE_GENERATION_PROTOCOL.md) | How preference pairs are built |
+| [`docs/DATA_V2_EXTENSION.md`](docs/DATA_V2_EXTENSION.md) | How `data_v2_pilot` (55) grew into `data_v2.jsonl` (600), and the judge-log-driven method used to pick which failure modes to scale |
 | [`configs/prompts/default.yaml`](configs/prompts/default.yaml) | Shared Evidence / Question / Instruction template |
 
 ## Task (one paragraph)
