@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import torch
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 
 def run_sequential_inference(
     prompts: list[str],
@@ -15,9 +19,6 @@ def run_sequential_inference(
     ``adapter_path``, if given, loads a LoRA adapter (e.g. from train_sft.py's
     output_dir) on top of the frozen base model via peft.
     """
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -25,8 +26,6 @@ def run_sequential_inference(
         device_map=device_map,
     )
     if adapter_path is not None:
-        from peft import PeftModel
-
         model = PeftModel.from_pretrained(model, adapter_path)
 
     outputs: list[str] = []
