@@ -21,6 +21,17 @@ from grounded_refusal.data.validate_qa_jsonl_against_schema import validate_qa_j
 from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
 
+def timestamped_output_dir(output_dir: str) -> str:
+    """Prefix a run timestamp onto output_dir's last path segment.
+
+    So repeat runs of the same config get their own directory instead of
+    silently overwriting the last one.
+    """
+    path = Path(output_dir)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return str(path.parent / f"{timestamp}_{path.name}")
+
+
 def build_prompt_completion_rows(
     examples,
     *,
@@ -82,15 +93,8 @@ def train_sft_main(argv: list[str] | None = None) -> int:
     train_dataset = Dataset.from_list(rows)
 
     train_cfg = load_yaml_config(args.train_config)
+    train_cfg["training"]["output_dir"] = timestamped_output_dir(train_cfg["training"]["output_dir"])
     lora_config = LoraConfig(**train_cfg["lora"])
-
-    # Prefix a run timestamp onto output_dir so repeat runs of the same config
-    # get their own directory instead of silently overwriting the last one.
-    base_output_dir = Path(train_cfg["training"]["output_dir"])
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    train_cfg["training"]["output_dir"] = str(
-        base_output_dir.parent / f"{timestamp}_{base_output_dir.name}"
-    )
     sft_config = SFTConfig(**train_cfg["training"])
 
     model_cfg = load_yaml_config(args.model_config)
