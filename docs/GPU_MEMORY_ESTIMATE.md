@@ -78,7 +78,7 @@ card either.
 ## Activation memory — scales with batch size
 
 Worked for `batch=4`, `seq_len=512` (the example used throughout this
-doc and in `max_seq_length: 512` in the config).
+doc and in `max_length: 512` in the config).
 
 **Per layer, element counts (`batch x seq_len x dim`), before converting to bytes:**
 

@@ -17,5 +17,5 @@ training:
   logging_steps: 2                # ~36-39 total steps on the v1 pilot; default 500 would never log
   save_strategy: "no"             # only 50 rows — just save the final adapter, no mid-run checkpoints
   bf16: true
-  max_seq_length: 512
+  max_length: 512
   seed: 42
