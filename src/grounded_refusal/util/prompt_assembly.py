@@ -9,7 +9,7 @@ import yaml
 from grounded_refusal.data.schema_qa import QAExample
 
 
-def load_prompt_config(path: Path) -> dict:
+def load_yaml_config(path: Path) -> dict:
     with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 

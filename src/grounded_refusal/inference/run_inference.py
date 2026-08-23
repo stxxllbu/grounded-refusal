@@ -7,7 +7,7 @@ import yaml
 
 from grounded_refusal.data.validate_qa_jsonl_against_schema import validate_qa_jsonl_against_schema
 from grounded_refusal.util.io import write_jsonl
-from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_prompt_config
+from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
 
 def infer_main(argv: list[str] | None = None) -> int:
@@ -24,7 +24,7 @@ def infer_main(argv: list[str] | None = None) -> int:
     if errors:
         raise SystemExit(f"Invalid input data:\n" + "\n".join(errors))
 
-    prompt_cfg = load_prompt_config(args.prompt_config)
+    prompt_cfg = load_yaml_config(args.prompt_config)
     instruction = prompt_cfg.get("instruction")
     if not instruction:
         raise SystemExit(f"Missing 'instruction' in prompt config: {args.prompt_config}")

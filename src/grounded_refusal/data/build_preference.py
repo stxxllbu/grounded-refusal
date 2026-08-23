@@ -25,7 +25,7 @@ from grounded_refusal.data.schema_qa import (
     QAExample,
 )
 from grounded_refusal.util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
-from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_prompt_config
+from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
@@ -250,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    prompt_cfg = load_prompt_config(args.prompt_config)
+    prompt_cfg = load_yaml_config(args.prompt_config)
     instruction = prompt_cfg.get(
         "instruction",
         "Answer the question using only the provided evidence.",

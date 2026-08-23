@@ -12,10 +12,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import yaml
+from datasets import Dataset
+from peft import LoraConfig
+from trl import SFTConfig, SFTTrainer
 
 from grounded_refusal.data.validate_qa_jsonl_against_schema import validate_qa_jsonl_against_schema
-from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_prompt_config
+from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
 
 def build_prompt_completion_rows(
@@ -44,54 +46,33 @@ def train_sft_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prompt-config", type=Path, default=Path("configs/prompts/default.yaml"))
     parser.add_argument("--model-config", type=Path, default=Path("configs/models/base.yaml"))
     parser.add_argument("--train-config", type=Path, default=Path("configs/train/sft_v1.yaml"))
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Build prompt/completion rows and print one example; skip loading the model and training.",
-    )
     args = parser.parse_args(argv)
 
     examples, errors = validate_qa_jsonl_against_schema(args.data)
     if errors:
-        raise SystemExit(f"Invalid input data:\n" + "\n".join(errors))
+        raise SystemExit(f"Training defensive: Invalid input data:\n" + "\n".join(errors))
 
-    prompt_cfg = load_prompt_config(args.prompt_config)
+    prompt_cfg = load_yaml_config(args.prompt_config)
     instruction = prompt_cfg.get("instruction")
+    evidence_label = prompt_cfg.get("evidence_label", "Evidence")
+    question_label = prompt_cfg.get("question_label", "Question")
     if not instruction:
-        raise SystemExit(f"Missing 'instruction' in prompt config: {args.prompt_config}")
-
-    with args.model_config.open(encoding="utf-8") as f:
-        model_cfg = yaml.safe_load(f)
-    with args.train_config.open(encoding="utf-8") as f:
-        train_cfg = yaml.safe_load(f)
+        raise SystemExit(f"Training defensive: Missing 'instruction' in prompt config: {args.prompt_config}")
 
     rows = build_prompt_completion_rows(
         examples,
         instruction=instruction,
-        evidence_label=prompt_cfg.get("evidence_label", "Evidence"),
-        question_label=prompt_cfg.get("question_label", "Question"),
+        evidence_label=evidence_label,
+        question_label=question_label,
     )
     print(f"Built {len(rows)} prompt/completion rows from {args.data}")
-
-    if args.dry_run:
-        print("--- sample row ---")
-        print(rows[0])
-        return 0
-
-    try:
-        from datasets import Dataset
-        from peft import LoraConfig
-        from trl import SFTConfig, SFTTrainer
-    except ImportError as exc:
-        raise SystemExit(
-            "Training dependencies missing. Install with: pip install -e '.[train]'"
-        ) from exc
-
     train_dataset = Dataset.from_list(rows)
 
+    train_cfg = load_yaml_config(args.train_config)
     lora_config = LoraConfig(**train_cfg["lora"])
     sft_config = SFTConfig(**train_cfg["training"])
 
+    model_cfg = load_yaml_config(args.model_config)
     trainer = SFTTrainer(
         model=model_cfg["model_name"],
         train_dataset=train_dataset,
