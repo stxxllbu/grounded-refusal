@@ -80,6 +80,11 @@ def judge_and_score_all(
     return scored_results
 
 
+def fail(message: str) -> int:
+    print(message, file=sys.stderr)
+    return 1
+
+
 def select_rows(raw_rows: list[dict], *, ids: list[str] | None, limit: int | None) -> list[dict]:
     """Narrow raw_rows down to what --ids and/or --limit asked for; --ids alone can't shrink a run that's already too big to afford, so --limit exists for that."""
     rows_after_id_filter = raw_rows
@@ -145,31 +150,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.overwrite and args.resume:
-        print("Use either --overwrite or --resume, not both.", file=sys.stderr)
-        return 1
+        return fail("Use either --overwrite or --resume, not both.")
     if (
         args.output is not None
         and args.output.exists()
         and not args.overwrite
         and not args.resume
     ):
-        print(
+        return fail(
             f"Output already exists: {args.output}. Pass --overwrite to replace it "
-            "or --resume to continue it.",
-            file=sys.stderr,
+            "or --resume to continue it."
         )
-        return 1
 
     raw_rows = read_jsonl(args.input)
     rows = select_rows(raw_rows, ids=args.ids, limit=args.limit)
 
     rows_with_output = [r for r in rows if r.get("model_output")]
-    skipped = len(rows) - len(rows_with_output)
-    if skipped:
-        print(f"Skipping {skipped} row(s) with no model_output (inference not run yet)", file=sys.stderr)
     if not rows_with_output:
-        print("No rows with model_output to score.", file=sys.stderr)
-        return 1
+        return fail("No rows with model_output to score.")
 
     results_loaded_from_previous_run: list[EvalResult] = []
     resuming = args.resume and args.output is not None and args.output.exists()
@@ -182,11 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run and rows_with_output:
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            print(
-                "Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.",
-                file=sys.stderr,
-            )
-            return 1
+            return fail("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
         api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
         client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
