@@ -63,35 +63,35 @@ def judge_and_score_all(
     output_path: Path | None,
 ) -> list[EvalResult]:
     """Judge each row in sequence, saving results as they finish so a later failure can't lose earlier ones."""
-    results: list[EvalResult] = []
-    total = len(rows)
-    for done, row in enumerate(rows, start=1):
+    scored_results: list[EvalResult] = []
+    total_rows = len(rows)
+    for index, row in enumerate(rows, start=1):
         try:
             judge_output = dry_run_judge_output(row) if dry_run else judge_row(
                 client, row["prompt"], row["model_output"], model=model
             )
         except Exception as exc:  # noqa: BLE001 -- one bad row must not kill the run
-            print(f"[{done}/{total}] FAILED {row['id']}: {exc}", file=sys.stderr)
+            print(f"[{index}/{total_rows}] FAILED {row['id']}: {exc}", file=sys.stderr)
             continue
-        result = score_row(row, judge_output)
-        results.append(result)
+        scored_result = score_row(row, judge_output)
+        scored_results.append(scored_result)
         if output_path is not None:
-            append_jsonl_row(output_path, result.model_dump(mode="json"))
-        print(f"[{done}/{total}] judged {row['id']}", file=sys.stderr)
-    return results
+            append_jsonl_row(output_path, scored_result.model_dump(mode="json"))
+    return scored_results
 
 
 def select_rows(raw_rows: list[dict], *, ids: list[str] | None, limit: int | None) -> list[dict]:
-    rows = raw_rows
+    """Narrow raw_rows down to what --ids and/or --limit asked for; --ids alone can't shrink a run that's already too big to afford, so --limit exists for that."""
+    rows_after_id_filter = raw_rows
     if ids is not None:
-        wanted = set(ids)
-        rows = [r for r in rows if r["id"] in wanted]
-        missing = wanted - {r["id"] for r in rows}
-        if missing:
-            print(f"Warning: --ids not found in --input: {sorted(missing)}", file=sys.stderr)
+        requested_ids = set(ids)
+        rows_after_id_filter = [r for r in raw_rows if r["id"] in requested_ids]
+
+    rows_after_limit = rows_after_id_filter
     if limit is not None:
-        rows = rows[:limit]
-    return rows
+        rows_after_limit = rows_after_id_filter[:limit]
+
+    return rows_after_limit
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,18 +104,33 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Model-output JSONL, e.g. outputs/base_pilot.jsonl (from inference/run_inference.py infer_main)",
     )
-    parser.add_argument("--output", type=Path, default=None, help="Write EvalResult JSONL")
     parser.add_argument(
-        "--overwrite", action="store_true", help="Start fresh, replacing an existing --output file"
+        "--output",
+        type=Path,
+        default=None,
+        help="Write EvalResult JSONL",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Start fresh, replacing an existing --output file",
     )
     parser.add_argument(
         "--resume",
         action="store_true",
         help="Skip rows already present in an existing --output file, and append new results to it",
     )
-    parser.add_argument("--ids", nargs="+", default=None, help="Score only these row ids")
     parser.add_argument(
-        "--limit", type=int, default=None, help="Score only the first N selected rows"
+        "--ids",
+        nargs="+",
+        default=None,
+        help="Score only these row ids",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Score only the first N selected rows",
     )
     parser.add_argument(
         "--dry-run",
@@ -148,34 +163,23 @@ def main(argv: list[str] | None = None) -> int:
     raw_rows = read_jsonl(args.input)
     rows = select_rows(raw_rows, ids=args.ids, limit=args.limit)
 
-    scoreable_rows = [r for r in rows if r.get("model_output")]
-    skipped = len(rows) - len(scoreable_rows)
+    rows_with_output = [r for r in rows if r.get("model_output")]
+    skipped = len(rows) - len(rows_with_output)
     if skipped:
         print(f"Skipping {skipped} row(s) with no model_output (inference not run yet)", file=sys.stderr)
-    if not scoreable_rows:
+    if not rows_with_output:
         print("No rows with model_output to score.", file=sys.stderr)
         return 1
 
-    existing_results: list[EvalResult] = []
+    results_loaded_from_previous_run: list[EvalResult] = []
     resuming = args.resume and args.output is not None and args.output.exists()
     if resuming:
-        existing_results = [EvalResult.model_validate(r) for r in read_jsonl(args.output)]
-        done_ids = {r.id for r in existing_results}
-        before = len(scoreable_rows)
-        scoreable_rows = [r for r in scoreable_rows if r["id"] not in done_ids]
-        print(
-            f"Resuming: {before - len(scoreable_rows)} row(s) already scored in {args.output}, "
-            f"{len(scoreable_rows)} remaining",
-            file=sys.stderr,
-        )
-        if not scoreable_rows:
-            summary = aggregate(existing_results)
-            print(json.dumps(summary, indent=2))
-            print(f"Nothing left to judge; {args.output} is already complete.", file=sys.stderr)
-            return 0
+        results_loaded_from_previous_run = [EvalResult.model_validate(r) for r in read_jsonl(args.output)]
+        already_scored_ids = {r.id for r in results_loaded_from_previous_run}
+        rows_with_output = [r for r in rows_with_output if r["id"] not in already_scored_ids]
 
     client: OpenAI | None = None
-    if not args.dry_run:
+    if not args.dry_run and rows_with_output:
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             print(
@@ -186,30 +190,20 @@ def main(argv: list[str] | None = None) -> int:
         api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
         client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
-    mode = "dry-run" if args.dry_run else f"judge={args.judge_model}"
-    print(f"Scoring {len(scoreable_rows)} row(s) from {args.input} ({mode})", file=sys.stderr)
-
     if args.output is not None and not resuming:
         write_jsonl(args.output, [])  # start (or truncate to) an empty file we'll append to
 
-    new_results = judge_and_score_all(
+    results_produced_by_this_run = judge_and_score_all(
         client,
-        scoreable_rows,
+        rows_with_output,
         model=args.judge_model,
         dry_run=args.dry_run,
         output_path=args.output,
     )
 
-    all_results = existing_results + new_results
-    summary = aggregate(all_results)
+    combined_results = results_loaded_from_previous_run + results_produced_by_this_run
+    summary = aggregate(combined_results)
     print(json.dumps(summary, indent=2))
-
-    if args.output is not None:
-        print(
-            f"Wrote {len(new_results)} new eval result(s) to {args.output} "
-            f"({len(all_results)} total)",
-            file=sys.stderr,
-        )
 
     return 0
 
