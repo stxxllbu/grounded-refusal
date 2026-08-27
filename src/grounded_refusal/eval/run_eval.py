@@ -1,19 +1,8 @@
 """Score model-output JSONL with the LLM judge and derive outcomes.
 
-GPT-4o extracts only predicted_behavior and is_faithful (judge.py);
-verdict.py maps those plus gold answerability to two independent outcomes
-(abstention_outcome, partial_outcome) -- see docs/EVAL_METRICS.md. Mirrors
-build_preference.py's CLI shape: --input/--output/--overwrite, --dry-run to
-smoke-test the pipeline without API calls, OPENAI_API_KEY check.
-
-Judging runs sequentially, not concurrently: this org's TPM limit already
-forced --max-workers 1 in practice (see docs/reports/week3.md), so a thread
-pool was dead code, not real concurrency. Each row's result is appended to
---output as soon as it's judged (util/io.append_jsonl_row), so a single bad
-judge call (content refusal, transient network error) no longer discards
-every already-judged row in the run -- see GitHub issue #4. --resume skips
-rows already present in an existing --output file instead of re-judging
-(and re-paying for) them.
+Judges rows one at a time and writes each result as soon as it's scored,
+so a single failed judge call doesn't lose already-judged rows. --resume
+skips rows already scored in an existing --output file.
 """
 
 from __future__ import annotations
@@ -73,13 +62,7 @@ def judge_and_score_all(
     dry_run: bool,
     output_path: Path | None,
 ) -> list[EvalResult]:
-    """Judge and score each row in sequence, appending each result to
-    output_path immediately (util/io.append_jsonl_row) so a later failure
-    never loses rows already judged -- and already API-billed -- earlier in
-    the same run. A single row's judge call failing is logged to stderr and
-    skipped (excluded from the returned/aggregated results) rather than
-    aborting the whole run.
-    """
+    """Judge each row in sequence, saving results as they finish so a later failure can't lose earlier ones."""
     results: list[EvalResult] = []
     total = len(rows)
     for done, row in enumerate(rows, start=1):
