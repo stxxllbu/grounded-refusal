@@ -91,6 +91,13 @@ def select_rows(raw_rows: list[dict], *, ids: list[str] | None, limit: int | Non
     if ids is not None:
         requested_ids = set(ids)
         rows_after_id_filter = [r for r in raw_rows if r["id"] in requested_ids]
+        found_ids = {r["id"] for r in rows_after_id_filter}
+        requested_ids_not_found = requested_ids - found_ids
+        if requested_ids_not_found:
+            print(
+                f"Warning: --ids not found in --input: {sorted(requested_ids_not_found)}",
+                file=sys.stderr,
+            )
 
     rows_after_limit = rows_after_id_filter
     if limit is not None:
