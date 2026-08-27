@@ -80,7 +80,7 @@ def judge_and_score_all(
     return scored_results
 
 
-def fail(message: str) -> int:
+def usage_error(message: str) -> int:
     print(message, file=sys.stderr)
     return 1
 
@@ -150,14 +150,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.overwrite and args.resume:
-        return fail("Use either --overwrite or --resume, not both.")
+        return usage_error("Use either --overwrite or --resume, not both.")
     if (
         args.output is not None
         and args.output.exists()
         and not args.overwrite
         and not args.resume
     ):
-        return fail(
+        return usage_error(
             f"Output already exists: {args.output}. Pass --overwrite to replace it "
             "or --resume to continue it."
         )
@@ -167,11 +167,12 @@ def main(argv: list[str] | None = None) -> int:
 
     rows_with_output = [r for r in rows if r.get("model_output")]
     if not rows_with_output:
-        return fail("No rows with model_output to score.")
+        return usage_error("No rows with model_output to score.")
+
+    continuing_previous_run = args.resume and args.output is not None and args.output.exists()
 
     results_loaded_from_previous_run: list[EvalResult] = []
-    resuming = args.resume and args.output is not None and args.output.exists()
-    if resuming:
+    if continuing_previous_run:
         results_loaded_from_previous_run = [EvalResult.model_validate(r) for r in read_jsonl(args.output)]
         already_scored_ids = {r.id for r in results_loaded_from_previous_run}
         rows_with_output = [r for r in rows_with_output if r["id"] not in already_scored_ids]
@@ -180,11 +181,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run and rows_with_output:
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            return fail("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
+            return usage_error("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
         api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
         client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
 
-    if args.output is not None and not resuming:
+    if args.output is not None and not continuing_previous_run:
         write_jsonl(args.output, [])  # start (or truncate to) an empty file we'll append to
 
     results_produced_by_this_run = judge_and_score_all(
