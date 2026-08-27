@@ -32,6 +32,20 @@ def write_jsonl(path: str | Path, rows: Iterable[dict]) -> None:
     temporary.replace(out)
 
 
+def append_jsonl_row(path: str | Path, row: dict) -> None:
+    """Append one JSON row to an existing JSONL file, flushing immediately.
+
+    Unlike write_jsonl's atomic replace-the-whole-file semantics, this only
+    adds one line and never touches what's already on disk -- a crash after
+    this call returns can't lose rows written before it. Used for
+    incremental checkpointing during long-running per-row API calls (e.g.
+    eval/run_eval.py's judge loop).
+    """
+    with Path(path).open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        f.flush()
+
+
 def find_row(rows: list[dict], row_id: str) -> dict:
     """Return one row by its ``id`` field."""
     for row in rows:

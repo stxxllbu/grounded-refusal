@@ -5,12 +5,20 @@ verdict.py maps those plus gold answerability to two independent outcomes
 (abstention_outcome, partial_outcome) -- see docs/EVAL_METRICS.md. Mirrors
 build_preference.py's CLI shape: --input/--output/--overwrite, --dry-run to
 smoke-test the pipeline without API calls, OPENAI_API_KEY check.
+
+Judging runs sequentially, not concurrently: this org's TPM limit already
+forced --max-workers 1 in practice (see docs/reports/week3.md), so a thread
+pool was dead code, not real concurrency. Each row's result is appended to
+--output as soon as it's judged (util/io.append_jsonl_row), so a single bad
+judge call (content refusal, transient network error) no longer discards
+every already-judged row in the run -- see GitHub issue #4. --resume skips
+rows already present in an existing --output file instead of re-judging
+(and re-paying for) them.
 """
 
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
 import json
 import os
 import sys
@@ -23,10 +31,9 @@ from grounded_refusal.eval.judge import DEFAULT_JUDGE_MODEL, judge_row
 from grounded_refusal.eval.metrics import aggregate
 from grounded_refusal.eval.schema_eval import EvalResult, JudgeOutput, ModelBehavior
 from grounded_refusal.eval.verdict import derive_abstention_outcome, derive_partial_outcome
-from grounded_refusal.util.io import read_jsonl, write_jsonl
+from grounded_refusal.util.io import append_jsonl_row, read_jsonl, write_jsonl
 
 DEFAULT_API_BASE = "https://api.openai.com/v1"
-DEFAULT_MAX_WORKERS = 4
 
 
 def dry_run_judge_output(row: dict) -> JudgeOutput:
@@ -38,34 +45,6 @@ def dry_run_judge_output(row: dict) -> JudgeOutput:
         is_faithful=True,
         rationale="[dry-run placeholder]",
     )
-
-
-def collect_judge_outputs(
-    client: OpenAI | None,
-    rows: list[dict],
-    *,
-    model: str,
-    dry_run: bool,
-    max_workers: int,
-) -> dict[str, JudgeOutput]:
-    if dry_run:
-        return {row["id"]: dry_run_judge_output(row) for row in rows}
-
-    assert client is not None
-    outputs: dict[str, JudgeOutput] = {}
-    total = len(rows)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        future_to_id = {
-            pool.submit(judge_row, client, row["prompt"], row["model_output"], model=model): row["id"]
-            for row in rows
-        }
-        done = 0
-        for future in concurrent.futures.as_completed(future_to_id):
-            row_id = future_to_id[future]
-            outputs[row_id] = future.result()
-            done += 1
-            print(f"[{done}/{total}] judged {row_id}", file=sys.stderr)
-    return outputs
 
 
 def score_row(row: dict, judge_output: JudgeOutput) -> EvalResult:
@@ -84,6 +63,39 @@ def score_row(row: dict, judge_output: JudgeOutput) -> EvalResult:
         partial_outcome=partial_outcome,
         model_name=row.get("model_name"),
     )
+
+
+def judge_and_score_all(
+    client: OpenAI | None,
+    rows: list[dict],
+    *,
+    model: str,
+    dry_run: bool,
+    output_path: Path | None,
+) -> list[EvalResult]:
+    """Judge and score each row in sequence, appending each result to
+    output_path immediately (util/io.append_jsonl_row) so a later failure
+    never loses rows already judged -- and already API-billed -- earlier in
+    the same run. A single row's judge call failing is logged to stderr and
+    skipped (excluded from the returned/aggregated results) rather than
+    aborting the whole run.
+    """
+    results: list[EvalResult] = []
+    total = len(rows)
+    for done, row in enumerate(rows, start=1):
+        try:
+            judge_output = dry_run_judge_output(row) if dry_run else judge_row(
+                client, row["prompt"], row["model_output"], model=model
+            )
+        except Exception as exc:  # noqa: BLE001 -- one bad row must not kill the run
+            print(f"[{done}/{total}] FAILED {row['id']}: {exc}", file=sys.stderr)
+            continue
+        result = score_row(row, judge_output)
+        results.append(result)
+        if output_path is not None:
+            append_jsonl_row(output_path, result.model_dump(mode="json"))
+        print(f"[{done}/{total}] judged {row['id']}", file=sys.stderr)
+    return results
 
 
 def select_rows(raw_rows: list[dict], *, ids: list[str] | None, limit: int | None) -> list[dict]:
@@ -111,7 +123,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--output", type=Path, default=None, help="Write EvalResult JSONL")
     parser.add_argument(
-        "--overwrite", action="store_true", help="Allow replacing an existing --output file"
+        "--overwrite", action="store_true", help="Start fresh, replacing an existing --output file"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip rows already present in an existing --output file, and append new results to it",
     )
     parser.add_argument("--ids", nargs="+", default=None, help="Score only these row ids")
     parser.add_argument(
@@ -127,17 +144,20 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("OPENAI_JUDGE_MODEL", DEFAULT_JUDGE_MODEL).strip(),
         help="Judge model name (default: OPENAI_JUDGE_MODEL env or gpt-4o-2024-08-06)",
     )
-    parser.add_argument(
-        "--max-workers",
-        type=int,
-        default=DEFAULT_MAX_WORKERS,
-        help="Concurrent judge API calls (ignored with --dry-run)",
-    )
     args = parser.parse_args(argv)
 
-    if args.output is not None and args.output.exists() and not args.overwrite:
+    if args.overwrite and args.resume:
+        print("Use either --overwrite or --resume, not both.", file=sys.stderr)
+        return 1
+    if (
+        args.output is not None
+        and args.output.exists()
+        and not args.overwrite
+        and not args.resume
+    ):
         print(
-            f"Output already exists: {args.output}. Pass --overwrite to replace it.",
+            f"Output already exists: {args.output}. Pass --overwrite to replace it "
+            "or --resume to continue it.",
             file=sys.stderr,
         )
         return 1
@@ -152,6 +172,24 @@ def main(argv: list[str] | None = None) -> int:
     if not scoreable_rows:
         print("No rows with model_output to score.", file=sys.stderr)
         return 1
+
+    existing_results: list[EvalResult] = []
+    resuming = args.resume and args.output is not None and args.output.exists()
+    if resuming:
+        existing_results = [EvalResult.model_validate(r) for r in read_jsonl(args.output)]
+        done_ids = {r.id for r in existing_results}
+        before = len(scoreable_rows)
+        scoreable_rows = [r for r in scoreable_rows if r["id"] not in done_ids]
+        print(
+            f"Resuming: {before - len(scoreable_rows)} row(s) already scored in {args.output}, "
+            f"{len(scoreable_rows)} remaining",
+            file=sys.stderr,
+        )
+        if not scoreable_rows:
+            summary = aggregate(existing_results)
+            print(json.dumps(summary, indent=2))
+            print(f"Nothing left to judge; {args.output} is already complete.", file=sys.stderr)
+            return 0
 
     client: OpenAI | None = None
     if not args.dry_run:
@@ -168,21 +206,27 @@ def main(argv: list[str] | None = None) -> int:
     mode = "dry-run" if args.dry_run else f"judge={args.judge_model}"
     print(f"Scoring {len(scoreable_rows)} row(s) from {args.input} ({mode})", file=sys.stderr)
 
-    judge_outputs = collect_judge_outputs(
+    if args.output is not None and not resuming:
+        write_jsonl(args.output, [])  # start (or truncate to) an empty file we'll append to
+
+    new_results = judge_and_score_all(
         client,
         scoreable_rows,
         model=args.judge_model,
         dry_run=args.dry_run,
-        max_workers=args.max_workers,
+        output_path=args.output,
     )
-    results = [score_row(row, judge_outputs[row["id"]]) for row in scoreable_rows]
 
-    summary = aggregate(results)
+    all_results = existing_results + new_results
+    summary = aggregate(all_results)
     print(json.dumps(summary, indent=2))
 
     if args.output is not None:
-        write_jsonl(args.output, [r.model_dump(mode="json") for r in results])
-        print(f"Wrote {len(results)} eval results to {args.output}", file=sys.stderr)
+        print(
+            f"Wrote {len(new_results)} new eval result(s) to {args.output} "
+            f"({len(all_results)} total)",
+            file=sys.stderr,
+        )
 
     return 0
 
