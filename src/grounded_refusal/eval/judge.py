@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 from grounded_refusal.eval.schema_eval import JudgeOutput
 
@@ -109,21 +109,29 @@ Return predicted_behavior, is_faithful, and a short rationale explaining your ca
 def judge_row(prompt: str, model_output: str, *, model: str) -> JudgeOutput:
     """Call the judge model on one (prompt, model_output) pair."""
     client = _get_client()
-    response = client.chat.completions.parse(
-        model=model,
-        temperature=0,
-        response_format=JudgeOutput,
-        messages=[
-            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"=== Prompt shown to model ===\n{prompt}\n\n"
-                    f"=== Model response ===\n{model_output}"
-                ),
-            },
-        ],
-    )
+    messages = [
+        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"=== Prompt shown to model ===\n{prompt}\n\n"
+                f"=== Model response ===\n{model_output}"
+            ),
+        },
+    ]
+    try:
+        response = client.chat.completions.parse(
+            model=model, temperature=0, response_format=JudgeOutput, messages=messages
+        )
+    except BadRequestError as exc:
+        if "temperature" not in str(exc):
+            raise
+        # Reasoning-family models (o1/o3/gpt-5* and similar) reject any
+        # temperature override and only accept their default -- retry
+        # without forcing determinism rather than hardcoding a model list.
+        response = client.chat.completions.parse(
+            model=model, response_format=JudgeOutput, messages=messages
+        )
     parsed = response.choices[0].message.parsed
     if parsed is None:
         refusal = response.choices[0].message.refusal
