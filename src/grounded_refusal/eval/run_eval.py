@@ -17,16 +17,12 @@ import os
 import sys
 from pathlib import Path
 
-from openai import OpenAI
-
 from grounded_refusal.data.schema_qa import Answerability, EvidenceChallengeTag
 from grounded_refusal.eval.judge import DEFAULT_JUDGE_MODEL, judge_row
 from grounded_refusal.eval.metrics import aggregate
 from grounded_refusal.eval.schema_eval import EvalResult, JudgeOutput, ModelBehavior
 from grounded_refusal.eval.verdict import derive_abstention_outcome, derive_partial_outcome
 from grounded_refusal.util.io import append_jsonl_row, read_jsonl, write_jsonl
-
-DEFAULT_API_BASE = "https://api.openai.com/v1"
 
 
 def usage_error(message: str) -> int:
@@ -56,7 +52,6 @@ def select_rows(raw_rows: list[dict], *, ids: list[str] | None, limit: int | Non
 
 
 def judge_all(
-    client: OpenAI | None,
     rows: list[dict],
     *,
     model: str,
@@ -78,7 +73,7 @@ def judge_all(
                     rationale="[dry-run placeholder]",
                 )
             else:
-                judge_output = judge_row(client, row["prompt"], row["model_output"], model=model)
+                judge_output = judge_row(row["prompt"], row["model_output"], model=model)
         except Exception as exc:  # noqa: BLE001 -- one bad row must not kill the run
             print(f"[{index}/{total}] FAILED {row['id']}: {exc}", file=sys.stderr)
             continue
@@ -193,19 +188,14 @@ def main(argv: list[str] | None = None) -> int:
 
     rows_to_judge = [row for row_id, row in rows_by_id.items() if row_id not in already_judged_ids]
 
-    client: OpenAI | None = None
-    if not args.dry_run and rows_to_judge:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            return usage_error("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
-        api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
-        client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
+    if not args.dry_run and rows_to_judge and not os.environ.get("OPENAI_API_KEY"):
+        return usage_error("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
 
     if args.output is not None and not already_judged_ids:
         write_jsonl(args.output, [])  # start (or truncate to) an empty file we'll append to
 
     newly_judged_raw = judge_all(
-        client, rows_to_judge, model=args.judge_model, dry_run=args.dry_run, output_path=args.output
+        rows_to_judge, model=args.judge_model, dry_run=args.dry_run, output_path=args.output
     )
 
     scored_results = score_all(rows_by_id, previously_judged_raw + newly_judged_raw)

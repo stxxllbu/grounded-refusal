@@ -10,11 +10,32 @@ categories itself.
 
 from __future__ import annotations
 
+import os
+
 from openai import OpenAI
 
 from grounded_refusal.eval.schema_eval import JudgeOutput
 
 DEFAULT_JUDGE_MODEL = "gpt-4o-2024-08-06"
+DEFAULT_API_BASE = "https://api.openai.com/v1"
+
+_client: OpenAI | None = None
+
+
+def _get_client() -> OpenAI:
+    """Lazily build and cache the judge's own client. Internal to this module --
+    callers ask for a judgment, not for a client, so swapping the judge to a
+    different provider later only touches this function.
+    """
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing OPENAI_API_KEY. Set it, or pass --dry-run to skip the API.")
+        api_base = os.environ.get("OPENAI_API_BASE", DEFAULT_API_BASE).rstrip("/")
+        _client = OpenAI(api_key=api_key, base_url=api_base, max_retries=3, timeout=60.0)
+    return _client
+
 
 # Few-shot anchors are the same five rows PREFERENCE_GENERATION_PROTOCOL.md
 # uses for its worked examples (pref_0021/0042/0026/0051/0031), reformatted
@@ -85,8 +106,9 @@ Response: "The evidence says Alan Turing was born in London. It does not provide
 Return predicted_behavior, is_faithful, and a short rationale explaining your call."""
 
 
-def judge_row(client: OpenAI, prompt: str, model_output: str, *, model: str) -> JudgeOutput:
+def judge_row(prompt: str, model_output: str, *, model: str) -> JudgeOutput:
     """Call the judge model on one (prompt, model_output) pair."""
+    client = _get_client()
     response = client.chat.completions.parse(
         model=model,
         temperature=0,
