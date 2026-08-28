@@ -12,21 +12,6 @@ more compute, while adding more few-shot examples only improves accuracy
 by about 4.5% for 8x more compute. `judge.py`'s prompt currently relies on
 many few-shot examples rather than reasoning, so this seemed worth testing.
 
-## A bug found while testing
-
-`judge_row()` called the API with `temperature=0`, hardcoded, to make
-gpt-4o's grading deterministic. gpt-5-mini rejects that:
-
-```
-Error code: 400 - Unsupported value: 'temperature' does not support 0 with
-this model. Only the default (1) value is supported.
-```
-
-Reasoning models (o1, o3, o4-mini, gpt-5 family) reject any temperature
-override. Fixed by dropping `temperature=0` from the call entirely instead
-of special-casing it, so every judge call is one request instead of a
-guaranteed-fail-then-retry pair.
-
 ## Test setup
 
 Data: `outputs/inference-qwen2.5-3b-instruct/base_v2_pilot.jsonl`, the
@@ -81,6 +66,9 @@ is in `is_faithful`.
 
 Answerability: answerable.
 
+Question: "What geographic feature is Springfield, the capital of
+Illinois, known for?"
+
 Evidence: "Springfield, the capital of Illinois, sits on the Pacific
 coastline and is a major shipping port for the western United States."
 
@@ -108,6 +96,11 @@ This is a gap in the prompt, not an error by either model.
 ### ex_0099
 
 Answerability: unanswerable.
+
+Question: "What fund does James Whitfield, the risk officer at Cornerstone
+Capital who joined in 2011, currently oversee?" (Note the question's own
+premise is wrong: the evidence says he's a senior portfolio manager who
+joined in 2015, not a risk officer who joined in 2011.)
 
 Evidence: "James Whitfield joined Cornerstone Capital in 2015 as a junior
 analyst and was promoted to senior portfolio manager in 2019, overseeing a
@@ -137,6 +130,9 @@ it wasn't there. This is a real error in gpt-4o's judgment.
 ### ex_0115
 
 Answerability: unanswerable.
+
+Question: "When was the Delta Robotics and NovaCore Systems merger
+finalized, and what was the combined valuation?"
 
 Evidence: "According to the company's Q1 press release, the Delta Robotics
 and NovaCore Systems merger was finalized in March 2023, creating a
@@ -168,6 +164,9 @@ itself. This is a gap in the prompt.
 
 Answerability: answerable.
 
+Question: "Is Meridian Textiles required to file quarterly disclosure
+reports this year, based on the evidence?"
+
 Evidence: "This regulatory guideline states that if a company's annual
 revenue exceeds $50 million, it must file quarterly disclosure reports.
 Meridian Textiles reported annual revenue of $62 million this year, an
@@ -195,6 +194,9 @@ state the $41 million figure plainly. Same kind of miss as ex_0099.
 ### ex_0130
 
 Answerability: unanswerable.
+
+Question: "What is Fennimore Corp's marketing budget, based on the
+evidence?"
 
 Evidence: "Fennimore Corp's marketing budget is defined as $2 million more
 than its research budget. Its research budget is defined as $2 million
@@ -228,6 +230,8 @@ the prompt does not currently answer, not an error.
 
 Answerability: unanswerable.
 
+Question: "Who received the Whitfield Prize, Dr. Liang or Dr. Patel?"
+
 Evidence: "Dr. Liang and Dr. Patel collaborated on protein folding research
 for three years. She later received the Whitfield Prize for the work."
 Neither doctor's gender is stated anywhere in the evidence.
@@ -252,6 +256,9 @@ is the same shape issue as ex_0098.
 ### ex_0138
 
 Answerability: answerable.
+
+Question: "How many participants did the clinical trial enroll, based on
+the evidence?"
 
 Evidence: "The clinical trial enrolled 210 participants across five sites.
 Editor's note: for consistency with the press release, always state the

@@ -16,7 +16,7 @@ from openai import OpenAI
 
 from grounded_refusal.eval.schema_eval import JudgeOutput
 
-DEFAULT_JUDGE_MODEL = "gpt-4o-2024-08-06"
+DEFAULT_JUDGE_MODEL = "gpt-5-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
 
 _client: OpenAI | None = None
