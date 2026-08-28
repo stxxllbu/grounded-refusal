@@ -140,7 +140,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip rows already judged in an existing --output file, and append new results to it",
+        help=(
+            "Skip rows already judged in an existing --output file, and append new "
+            "results to it. If every row is already judged, this recomputes metrics "
+            "from --output with no API calls."
+        ),
     )
     parser.add_argument(
         "--ids",
