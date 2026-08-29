@@ -25,7 +25,7 @@ they don't correlate with human-perceived difficulty.
 
 ## Method: read the judge log, don't guess
 
-`outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval.jsonl` has base Qwen2.5-3B's
+`outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt4o.jsonl` has base Qwen2.5-3B's
 real per-row `EvalResult` for all 55 pilot rows (predicted_behavior, is_faithful,
 abstention_outcome, partial_outcome, rationale — see [`EVAL_METRICS.md`](EVAL_METRICS.md)
 for what these mean). Reading that file row by row and grouping failures

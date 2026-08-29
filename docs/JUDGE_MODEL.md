@@ -21,7 +21,7 @@ Three judges scored the same 55 rows:
 
 | Judge | Output file |
 |---|---|
-| gpt-4o | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval.jsonl` |
+| gpt-4o | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt4o.jsonl` |
 | gpt-4o-mini | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt4o-mini.jsonl` |
 | gpt-5-mini | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt5-mini.jsonl` |
 
@@ -153,12 +153,14 @@ mention that the evidence also gives a different figure.
 | gpt-4o | answer | False | "The response selects one of the conflicting pieces of evidence without acknowledging the discrepancy." |
 | gpt-5-mini | answer | True | "Those exact claims are explicitly supported by the evidence... The evidence also contains a conflicting claim, which the model did not mention, but the facts it asserted are present in the provided evidence." |
 
-Neither is wrong. gpt-4o is checking whether the response handled the
-evidence's internal conflict honestly; gpt-5-mini is checking whether the
-specific numbers the response stated appear in the evidence text. Both are
-reasonable readings of "is every claim supported by the evidence," and
-`JUDGE_SYSTEM_PROMPT` has no example covering evidence that contradicts
-itself. This is a gap in the prompt.
+gpt-5-mini is right. `JUDGE_SYSTEM_PROMPT` defines `is_faithful` as whether
+every claim is explicitly supported by the evidence, and both numbers the
+response states (June 2023, $1.4 billion) are, word for word, in the
+evidence. Whether the response should have flagged the conflict is a
+question about behavior (should it have refused or gone partial instead of
+picking a side), not about whether its stated claims are grounded. gpt-4o's
+call folds that behavior question into `is_faithful`, which is stricter
+than what the prompt's own definition asks for.
 
 ### ex_0122
 
@@ -219,12 +221,14 @@ mathematical error. Substituting one equation into the other gives `M = M`
 | gpt-4o | refuse | True | "It refuses to provide an answer, stating that the evidence does not support a unique solution, which is faithful to the evidence provided." |
 | gpt-5-mini | refuse | False | "it asserts the equations imply M and R are equal and contradict the initial conditions. That claim is not supported by the evidence (the equations actually imply M = R + $2,000,000), so the answer is unfaithful." |
 
-Neither is wrong. `JUDGE_SYSTEM_PROMPT` defines `is_faithful` as whether
-every factual claim is supported by the evidence, worded around facts and
-entities, not whether a derivation from the evidence's numbers is done
-correctly. gpt-4o's read is the narrower, more literal one; gpt-5-mini
-extended faithfulness to cover the math itself. This is a scope question
-the prompt does not currently answer, not an error.
+gpt-5-mini is right. The claim "M and R are equal" is not just an
+unchecked derivation, it is a specific assertion the response makes about
+what the evidence's stated relationship implies, and that assertion is
+false: substituting one equation into the other gives `M = M`, not `M =
+R`. That is the same kind of error as ex_0099/ex_0122/ex_0138: the response
+states something false about what the evidence establishes, and gpt-4o
+accepted the response's final "no unique solution" conclusion without
+checking the reasoning that got there.
 
 ### ex_0134
 
@@ -287,13 +291,15 @@ evidence text, which contains the editor's note verbatim.
 ## Summary
 
 Of the 6 rows where the two judges disagreed on `is_faithful`, gpt-5-mini
-was checked against the actual evidence text and found to be correct on 4
-(ex_0099, ex_0122, ex_0134, ex_0138), all of them cases where gpt-4o
-repeated a false claim from the response back as true instead of checking
-it against the evidence. The other 2 (ex_0115, ex_0130) are cases where
-`JUDGE_SYSTEM_PROMPT` does not specify how to handle the situation, and
-both judges' readings are defensible. gpt-4o was not found correct on any
-disagreement.
+was checked against the actual evidence text and found to be correct on
+all 6 (ex_0099, ex_0115, ex_0122, ex_0130, ex_0134, ex_0138). In 4 of those
+(ex_0099, ex_0122, ex_0134, ex_0138), gpt-4o repeated a false claim from
+the response back as true instead of checking it against the evidence. In
+the other 2 (ex_0115, ex_0130), gpt-4o applied a stricter, prompt-external
+standard (must flag internal evidence conflicts; must get intermediate
+derivations right) instead of the prompt's actual definition of
+`is_faithful`, whether each stated claim is explicitly supported by the
+evidence. gpt-4o was not found correct on any of the 6.
 
 The 3 `predicted_behavior` disagreements (ex_0098, ex_0122, ex_0134) are
 all the same unresolved case: a response answers one part of the question
