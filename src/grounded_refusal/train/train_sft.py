@@ -10,6 +10,8 @@ and scored with eval/run_eval.py for the SFT row of the headline table.
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +32,44 @@ def timestamped_output_dir(output_dir: str) -> str:
     path = Path(output_dir)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return str(path.parent / f"{timestamp}_{path.name}")
+
+
+def git_commit_hash() -> str | None:
+    """Current commit hash, or None if git isn't available (e.g. no git on PATH)."""
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return result.stdout.strip()
+
+
+def write_checkpoint_metadata(
+    output_dir: str,
+    *,
+    base_model: str,
+    data_path: Path,
+    num_rows: int,
+    num_epochs: float,
+    lora_config: LoraConfig,
+    train_config_path: Path,
+) -> None:
+    """Write a self-describing metadata file into the checkpoint directory.
+
+    Makes each checkpoint state what it is without anyone hand-tracking it in
+    a table -- see checkpoints/README.md.
+    """
+    metadata = {
+        "base_model": base_model,
+        "trained_on": str(data_path),
+        "num_rows": num_rows,
+        "num_epochs": num_epochs,
+        "lora_r": lora_config.r,
+        "lora_target_modules": list(lora_config.target_modules),
+        "train_config": str(train_config_path),
+        "git_commit": git_commit_hash(),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    (Path(output_dir) / "run_metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
 
 def build_prompt_completion_rows(
@@ -106,6 +146,15 @@ def train_sft_main(argv: list[str] | None = None) -> int:
     )
     trainer.train()
     trainer.save_model(sft_config.output_dir)
+    write_checkpoint_metadata(
+        sft_config.output_dir,
+        base_model=model_cfg["model_name"],
+        data_path=args.data,
+        num_rows=len(rows),
+        num_epochs=sft_config.num_train_epochs,
+        lora_config=lora_config,
+        train_config_path=args.train_config,
+    )
     print(f"Wrote LoRA adapter to {sft_config.output_dir}")
     return 0
 

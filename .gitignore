@@ -162,9 +162,12 @@ cli/
 learning/
 
 # Trained model checkpoints (binary weights -- reproduce via train_sft.py, don't commit).
-# Keep the directory itself and its README (git doesn't track empty dirs).
+# Keep the directory itself, its README, and each run's metadata file.
 checkpoints/*
 !checkpoints/README.md
+!checkpoints/*/
+checkpoints/*/*
+!checkpoints/*/run_metadata.json
 
 
 # Spyder project settings

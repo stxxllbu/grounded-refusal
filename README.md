@@ -81,6 +81,11 @@ python -m grounded_refusal.eval.run_eval \
 
 Full distributions, schemas, and pipeline notes: see the week reports above.
 
+## Checkpoints
+
+Trained LoRA adapters aren't committed to git. What each timestamped checkpoint actually is (base
+model, training data, config) is recorded in [`checkpoints/README.md`](checkpoints/README.md).
+
 ## Docs
 
 ### Data

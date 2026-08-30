@@ -145,7 +145,7 @@ PYTHONPATH=src python -m grounded_refusal.inference.run_inference \
 | Model | abstention_recall | abstention_precision | over_refusal_rate | hallucination_rate | partial_match_rate |
 |---|---:|---:|---:|---:|---:|
 | Qwen2.5-3B-Instruct (base, Week 3) | 0.6316 | 0.9231 | 0.0333 | 0.1905 | 0.6667 |
-| Qwen2.5-3B-Instruct + SFT-v1 LoRA | 0.5789 | 0.9167 | 0.0333 | 0.2326 | 1.0000 |
+| Qwen2.5-3B-Instruct + SFT LoRA (`20260823_151044_lora`) | 0.5789 | 0.9167 | 0.0333 | 0.2326 | 1.0000 |
 
 This checkpoint was trained on `data_v1_pilot` (Experiment 1) and is evaluated here on
 `data_v2_pilot`, the harder dataset Week 3 used for the base-model baseline, so the two rows above
