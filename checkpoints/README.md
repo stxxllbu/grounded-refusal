@@ -29,6 +29,15 @@ add a checkpoint.
 |---|---|---|---|---|
 | `20260823_151044_lora` | Qwen2.5-3B-Instruct | `data_v1_pilot` (50 rows), 3 epochs | [`../configs/train/lora.yaml`](../configs/train/lora.yaml) | [`run_metadata.json`](20260823_151044_lora/run_metadata.json) |
 
+**After a training run:**
+1. Nothing to do for `run_metadata.json` — `train_sft.py` writes it automatically.
+2. Add a row to the table above by copying values straight from that file:
+   ```bash
+   cat checkpoints/<new-timestamp>_lora/run_metadata.json
+   ```
+   Copy `base_model`, `trained_on` (+ row count/epochs), and link `train_config` and the metadata
+   file.
+
 ## Re-running this recipe
 
 Same data, config, and seed:

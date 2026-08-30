@@ -136,6 +136,7 @@ PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_verdict.py -v
 
 - **Small n, especially for slices.** `hallucination_rate` on `data_v2_pilot` is computed over 42 "attempted" rows; `partial_match_rate` over just 6 `partial` rows. A rate moving from 0.95 to 0.63 on ~19-20 unanswerable rows per set is suggestive, not statistically tight — treat these as directional signals for an 8-week MVP, not precise estimates.
 - **Judge calibration is partial, not complete.** The manual review covered all 19 rows of the `known_world_conflict` category on `data_v2_pilot` — not `distractor_entity`, not `partial_evidence` beyond a few spot-checks, not `data_v1_pilot`, and not against real human labels.
+- **Update, added later:** gpt-4o (the judge used for every number above) was subsequently found to have specific, systematic calibration issues of its own. See [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) for the analysis; read this report's numbers with that in mind.
 - **No automated finer-than-`answerability` slicing.** The `known_world_conflict` review was done by hand; `metrics.py` doesn't compute per-`evidence_challenge` breakdowns yet.
 
 ## Not in Week 3
