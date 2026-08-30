@@ -25,9 +25,9 @@ Three judges scored the same 55 rows:
 | gpt-4o-mini | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt4o-mini.jsonl` |
 | gpt-5-mini | `outputs/eval-qwen2.5-3b-instruct/base_v2_pilot_eval_judge-gpt5-mini.jsonl` |
 
-gpt-4o's judgments are the ones `docs/reports/week3.md` and
-`week4_draft.md` describe hand-checking for calibration errors, so they
-are treated below as the closest thing to a known-good reference.
+gpt-4o's judgments are the ones `docs/reports/week3.md` and `week4.md`
+describe hand-checking for calibration errors, so they are treated below
+as the closest thing to a known-good reference.
 
 Command for the new gpt-5-mini run:
 

@@ -119,7 +119,7 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
 ```bash
 PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --input outputs/inference-qwen2.5-3b-instruct/base_v1_pilot.jsonl \
-  --output outputs/eval-qwen2.5-3b-instruct/base_v1_pilot_eval.jsonl \
+  --output outputs/eval-qwen2.5-3b-instruct/base_v1_pilot_eval_judge-gpt4o.jsonl \
   --overwrite \
   --max-workers 1
 ```
