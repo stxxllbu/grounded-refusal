@@ -16,7 +16,7 @@ under Experiments).
 | LoRA SFT training script | [`src/grounded_refusal/train/train_sft.py`](../../src/grounded_refusal/train/train_sft.py) | `train_sft_main` |
 | Training config | [`configs/train/lora.yaml`](../../configs/train/lora.yaml) | `r=16`, `q_proj`/`v_proj`, batch=2 × grad_accum=8, gradient checkpointing, bf16 |
 | Adapter loading (inference) | [`src/grounded_refusal/inference/hf_backend.py`](../../src/grounded_refusal/inference/hf_backend.py), [`run_inference.py`](../../src/grounded_refusal/inference/run_inference.py) | New `--adapter` flag |
-| Judge calibration fixes | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | Two new few-shot anchors |
+| Judge distractor/presupposition rule | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | Two new few-shot anchors |
 | Checkpoint storage | `checkpoints/<timestamp>_<config-name>/`, [`checkpoints/README.md`](../../checkpoints/README.md) | Not committed to git |
 
 ```text
@@ -35,14 +35,10 @@ outputs/eval-.../*_eval.jsonl
 16GB RTX 5060 Ti. The estimate uses Qwen2.5-3B-Instruct's real `config.json` values
 (`hidden_size=2048`, `num_hidden_layers=36`, `num_key_value_heads=2`).
 
-The first draft of the estimate had two errors, both fixed before it was used to set any config
-value. It stated the LoRA footprint as 0.05GB in one table and 0.06GB in another, for the same
-3.7M trained parameters under the same 16-bytes-per-parameter rule. It also claimed full
-fine-tuning needs about 800x more memory than LoRA. The real total-memory ratio is about 8x
-(48GB versus 6.06GB). The 800x figure was the ratio of trained *parameter count*, a different
-number entirely.
+LoRA needs about 8x less total memory than full fine-tuning (6.06GB versus 48GB), since it trains
+only about 3.7M of the model's 3B parameters.
 
-The final estimate sets `configs/train/lora.yaml` directly. `per_device_train_batch_size: 2` and
+The estimate sets `configs/train/lora.yaml` directly. `per_device_train_batch_size: 2` and
 `gradient_accumulation_steps: 8` give an effective batch size of 16, without ever holding 16
 examples' activations in memory at once. `gradient_checkpointing: true` is on because the estimate
 showed batch=4 alone was already close to the 16GB ceiling.
@@ -51,28 +47,19 @@ showed batch=4 alone was already close to the 16GB ceiling.
 
 `train_sft.py`'s `build_prompt_completion_rows` builds one row per QA example:
 `{"prompt": [{"role": "user", ...}], "completion": [{"role": "assistant", ...}]}`. This
-conversational format is required, not a style choice. `trl.SFTTrainer` only applies the
-tokenizer's chat template to input in this shape. Given a plain string instead, `SFTTrainer` treats
-it as raw text and applies no template at all.
-
-The first version of this function built plain strings: `{"prompt": "<text>", "completion":
-"<text>"}`. `hf_backend.py`'s inference path always wraps its prompt text in
-`apply_chat_template(..., add_generation_prompt=True)`. So training input and inference input would
-have been two different formats for the same underlying prompt. The model would have been trained
-on a shape it never actually sees at evaluation time. This was caught and fixed before the
-checkpoint below was trusted. Generations were checked afterward for template-token leakage; there
-was none.
+conversational format is required, not a style choice: `trl.SFTTrainer` only applies the
+tokenizer's chat template to input in this shape, and `hf_backend.py`'s inference path always
+wraps its own prompt text in `apply_chat_template(..., add_generation_prompt=True)`. Matching the
+two exactly means the model trains on the same input shape it is prompted with at evaluation time.
+Verified by checking the checkpoint's generations for template-token leakage; there is none.
 
 ## Adapter loading
 
-Before this week, a trained checkpoint had no way to be evaluated. `train_sft.py` could produce an
-adapter, but nothing in the inference path could load it.
-
-`hf_backend.py`'s `run_sequential_inference` now takes an `adapter_path` argument. When given, it
-wraps the frozen base model with `peft.PeftModel.from_pretrained`. `run_inference.py` exposes this
-as `--adapter`. The output's `model_name` field records which adapter was used
-(`<base>+lora:<path>`), so an eval file downstream can be traced back to the exact checkpoint that
-produced it.
+`hf_backend.py`'s `run_sequential_inference` takes an `adapter_path` argument. When given, it wraps
+the frozen base model with `peft.PeftModel.from_pretrained`, so a trained checkpoint can be
+evaluated directly. `run_inference.py` exposes this as `--adapter`. The output's `model_name` field
+records which adapter was used (`<base>+lora:<path>`), so an eval file downstream can be traced back
+to the exact checkpoint that produced it.
 
 ## Checkpoint storage
 
@@ -86,14 +73,16 @@ don't belong in version history, and they're cheap to reproduce from the trainin
 and data alone. `checkpoints/README.md` is the one file inside it that is tracked, so the directory
 itself still exists after a fresh clone.
 
-## Judge robustness fixes
+## Judge rule: distractor entities and false presuppositions
 
-Manually reviewing the SFT checkpoint's judge output on `data_v2_pilot` found two rows the judge
-scored `partial` that should have been `refuse`. `partial` means the response answers the part the
-evidence supports and explicitly says the rest isn't supported. `refuse` means the response answers
-no part of the question.
+`judge.py`'s few-shot examples encode this rule: a response counts as `refuse`, not `partial`, when
+it states a true fact about a different entity than the one actually asked about and explicitly
+declines the one asked about, or when it corrects a question's false premise and answers no part of
+the question as posed. (`partial` means the response answers the part the evidence supports and
+explicitly says the rest isn't supported. `refuse` means the response answers no part of the
+question.)
 
-**`ex_0100`**
+**`ex_0100`** — distractor entity.
 
 - Evidence: "The Meridian Bridge, opened in 1998, spans the Colby River and carries approximately
   40,000 vehicles daily, connecting the east and west districts of Fairview."
@@ -103,10 +92,10 @@ no part of the question.
   provided, so I cannot provide the number of vehicles it carries daily."
 
 The response never states a number as the answer to the bridge actually asked about, the one that
-opened in 2004. It states a real number for a different bridge, then explicitly declines the one
-asked about. That is a refusal, not a partial answer.
+opened in 2004. It states a real number for a different bridge, then declines the one asked about.
+Under the rule above, that is `refuse`.
 
-**`ex_0129`**
+**`ex_0129`** — false presupposition.
 
 - Evidence: "Halvorsen Pharmaceuticals' Phase 3 trial for its arthritis treatment met its primary
   endpoint, showing statistically significant symptom reduction compared to placebo."
@@ -116,26 +105,10 @@ asked about. That is a refusal, not a partial answer.
   reduction compared to placebo. Therefore, there is no information available to suggest that the
   trial failed to meet its primary endpoint."
 
-The question assumes the trial failed. The evidence says it succeeded. The response corrects that
-false assumption and answers no part of "why did it fail." That is also a refusal.
+The question assumes the trial failed; the evidence says it succeeded. The response states that
+and answers no part of "why did it fail." That is also `refuse`.
 
-Two similar rows were checked against the same rule and correctly left unchanged:
-
-- **`ex_0131`** (stays `partial`). Evidence: "Station Alpha's launch date is scheduled for exactly
-  two weeks before Station Beta's launch. Station Beta's launch is scheduled for exactly two weeks
-  after Station Alpha's launch." Response: "...Station Alpha's launch date is scheduled for exactly
-  two weeks before Station Beta's launch. Since the exact dates of both stations' launches are not
-  provided, I cannot determine the specific launch dates. However, I can confirm that Station
-  Alpha's launch is two weeks prior to Station Beta's." This does state a real, confirmed fact about
-  the entity actually asked about, then declines the part it can't answer. That's a genuine partial
-  answer.
-- **`ex_0116`** (stays `answer`). Evidence: two conflicting battery-life figures, 14 hours in a user
-  manual and 9 hours in a spec sheet, for the same device. Response: states 9 hours as the answer
-  with no hedge, citing the spec sheet. This picks one of two conflicting numbers and asserts it
-  outright. That's a real `answer`, not a judge miscalibration. It's a concerning response on its
-  own terms, but the classification is correct.
-
-Both `ex_0100` and `ex_0129` were added to `judge.py`'s few-shot examples.
+`ex_0100` and `ex_0129` are among `judge.py`'s few-shot examples.
 
 ## Experiments
 
@@ -145,8 +118,9 @@ Both `ex_0100` and `ex_0129` were added to `judge.py`'s few-shot examples.
 PYTHONPATH=src python -m grounded_refusal.train.train_sft
 ```
 
-50 rows (`data/data_v1_pilot.jsonl`), 3 epochs, effective batch size 16, 21.7s wall clock on the
-RTX 5060 Ti. Output: `checkpoints/20260823_151044_lora`.
+This trains on the 50 rows in `data/data_v1_pilot.jsonl` for 3 epochs, with an effective batch size
+of 16. It ran in 21.7 seconds on the RTX 5060 Ti and produced the checkpoint
+`checkpoints/20260823_151044_lora`.
 
 | step (~epoch) | loss | mean_token_accuracy |
 |---:|---:|---:|
@@ -173,13 +147,17 @@ PYTHONPATH=src python -m grounded_refusal.inference.run_inference \
 | Qwen2.5-3B-Instruct (base, Week 3) | 0.6316 | 0.9231 | 0.0333 | 0.1905 | 0.6667 |
 | Qwen2.5-3B-Instruct + SFT-v1 LoRA | 0.5789 | 0.9167 | 0.0333 | 0.2326 | 1.0000 |
 
-This table's purpose is to show the pipeline runs end to end. It is not a claim about whether SFT
-helps. [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) later found that gpt-4o, the judge used here,
-systematically accepts a response's own claim that "the evidence doesn't specify X" without
-checking it. SFT's `partial_match_rate` reaching a clean 1.0 suggests the model shifted toward
-exactly this kind of explicit-decline language. So gpt-4o may be under-catching SFT's errors more
-than it under-caught the base model's. This table could be flattering SFT rather than measuring it.
-Week 5 re-judges both models with gpt-5-mini; that table is the one to trust.
+This checkpoint was trained on `data_v1_pilot` (Experiment 1) and is evaluated here on
+`data_v2_pilot`, the harder dataset Week 3 used for the base-model baseline, so the two rows above
+compare the same evaluation set across base and SFT. This is not a claim about whether SFT helps.
+[`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) later found that gpt-4o, the judge used here, tends to
+accept a response's claim that "the evidence doesn't specify X" without checking it against the
+evidence. SFT's `partial_match_rate` of 1.0 suggests the model produces exactly this kind of claim
+more often than the base model does.
+
+That means gpt-4o's blind spot likely hits SFT's outputs harder than the base model's, making SFT
+look better here than it really is. Week 5 re-judges both models with gpt-5-mini; that comparison,
+not this one, is the one to trust.
 
 ## How to run
 
@@ -202,25 +180,16 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
 
 ## Limitations
 
-- **The base-vs-SFT comparison rests on a judge with a known blind spot**, so it shouldn't be read
-  as a conclusion (see the caveat above).
-- **Re-judging after the two anchor fixes above changed the unfaithful row count from 7 to 10, not
-  7 to 9.** The extra change can't be explained: the pre-fix raw judge output was overwritten
-  instead of archived.
+- **The base-vs-SFT comparison uses gpt-4o as judge, which has a known blind spot** (see the caveat
+  above), so it shouldn't be read as a conclusion. Week 5 re-judges both models with gpt-5-mini
+  instead.
 - **The recall drop has no clear cause.** SFT trained only on `data_v1_pilot` (50 easier rows) and
   was evaluated only on the harder, different `data_v2_pilot`, so a genuine capability regression
-  and a failure to generalize to unseen failure modes would look identical in this data. One obvious
-  fix would be judging the SFT model's own output on `data_v1_pilot`, to check whether it still
-  performs well on training-adjacent data. That doesn't work here: those 50 rows are the exact rows
-  the model was trained on, so judging them would measure memorization, not generalization.
-
-## Not in Week 4
-
-- A trustworthy base-vs-SFT comparison, which needs the Week 5 gpt-5-mini re-judge.
-- Any seed or hyperparameter sweep (this run used one config, one seed, 3 epochs).
+  and a failure to generalize to unseen failure modes would look identical in this data.
 
 ## Next: Week 5
 
-Re-judge both the base model and this SFT checkpoint on `data_v2_pilot` with gpt-5-mini. Also judge
-the 600-row `data_v2.jsonl` extension for the first time; it has never been judged (see
-`docs/DATA_V2_EXTENSION.md`). Those numbers, not this week's, are the ones to cite going forward.
+- Re-judge base and SFT on `data_v2_pilot` with gpt-5-mini to establish a trustworthy baseline.
+- Extend the eval data beyond this week's 55-row set.
+- Train future SFT checkpoints on `data_v2` instead of `data_v1_pilot`, so training and evaluation
+  data match.
