@@ -602,16 +602,19 @@ relation to its performance."
 | gpt-4o | partial | True | "...correctly identifies that the prototype outperformed expectations, as stated in the evidence. It also notes that the performance of the production model is not mentioned..." |
 | gpt-5-mini | answer | True | "...states the prototype outperformed expectations, which is explicitly supported by the evidence. It also correctly notes that the evidence does not report the production model's performance. No facts outside the evidence were introduced." |
 
-**Both judges are wrong here, in the same way.** "It" is genuinely ambiguous between
-"the prototype" and "the production model" — this row's gold `answerability` is
-`unanswerable` for exactly that reason, matching `DATA_V2_EXTENSION.md`'s
-`coreference_ambiguity` phenomenon (100% hit rate in the original 55-row pilot). The
-response resolves the ambiguity by picking "the prototype" and states this as fact;
-that attribution is no more supported by the evidence than naming "Dr. Liang" was in
-`ex_0134` — where gpt-5-mini itself correctly flagged the identical kind of guess as
-unfaithful. Neither judge catches it here. This is not a disagreement to adjudicate
-between the two judges; it is a shared blind spot, and — separately from the judge
-question — a live example of the model failing the exact trap it was built to test.
+gpt-5-mini is right, and this one is not actually the same shape as `ex_0134`. "It"
+immediately follows "the prototype" as the grammatical subject of the preceding
+clause — ordinary pronoun resolution (subject/topic continuity across sentences)
+resolves it to "the prototype" by default, with no comparable ambiguity signal
+pointing the other way. That is unlike `ex_0134`'s "she," which sits between two
+people whose gender is never stated anywhere in the evidence — a genuinely symmetric,
+50/50 case with no grammatical anchor at all. Treating the two as the same kind of
+unsupported guess overstated `ex_0135`'s ambiguity.
+
+This row's gold `answerability` is still `unanswerable`, so as a `coreference_ambiguity`
+construction it may not be doing what it was designed to do — a data-quality question
+worth a note for whoever next touches this row, separate from which judge got the
+call right here.
 
 #### ex_0139
 
@@ -641,21 +644,169 @@ gpt-5-mini is right.
 
 ### Where this leaves SFT's output specifically
 
-Of the 13 disagreements: gpt-5-mini is clearly right on 9 (`ex_0092`, `ex_0097`,
-`ex_0109`, `ex_0111`, `ex_0112`, `ex_0115`, `ex_0130`, `ex_0134`, `ex_0139`); 2
-(`ex_0098`, `ex_0105`) are the same open "partial-shaped but wrong" prompt gap found
-on the base model's output, not adjudicable either way; 1 (`ex_0131`) is genuinely
-contestable, with gpt-4o's call at least as defensible; and 1 (`ex_0135`) is a case
-where **both judges are wrong**, missing a real, evidence-grounded model failure
-rather than disagreeing with each other about it.
+Of the 13 disagreements: gpt-5-mini is clearly right on 10 (`ex_0092`, `ex_0097`,
+`ex_0109`, `ex_0111`, `ex_0112`, `ex_0115`, `ex_0130`, `ex_0134`, `ex_0135`,
+`ex_0139`); 2 (`ex_0098`, `ex_0105`) are the same open "partial-shaped but wrong"
+prompt gap found on the base model's output, not adjudicable either way; and 1
+(`ex_0131`) is genuinely contestable, with gpt-4o's call at least as defensible.
 
 The overwhelming majority of disagreements still favor gpt-5-mini, more decisively
-than on the base model's output (9 clear wins out of 13, versus 6 of 7 on the base
+than on the base model's output (10 clear wins out of 13, versus 6 of 7 on the base
 model). But the trust established above does not transfer uniformly: `ex_0131` and
 the `data_v1_pilot` section below both show gpt-4o can still be the more defensible
-call on a single-fact question with no real sub-parts to decompose, and `ex_0135`
-shows neither judge can be assumed to catch every failure the underlying data was
-specifically designed to surface.
+call on a single-fact question with no real sub-parts to decompose.
+
+## Does this hold on `data_v1_pilot`?
+
+`data_v1_pilot` is the easier, Week 2 pilot set — a third output distribution,
+neither the adversarial base-model output above nor SFT's output, and the one Week
+3's original "how much harder is v2 than v1" comparison depends on. `base_v2_pilot`
+was already re-judged with gpt-5-mini (above), so leaving `base_v1_pilot` on gpt-4o
+would mean comparing v1 and v2 across two different judges again — the same problem
+being fixed for base-vs-SFT, just relocated to a different comparison.
+
+Data: `outputs/inference-qwen2.5-3b-instruct/base_v1_pilot.jsonl` (base model, 50
+rows).
+
+| Judge | Output file |
+|---|---|
+| gpt-4o | `outputs/eval-qwen2.5-3b-instruct/base_v1_pilot_eval_judge-gpt4o.jsonl` |
+| gpt-5-mini | `outputs/eval-qwen2.5-3b-instruct/base_v1_pilot_eval_judge-gpt5-mini.jsonl` |
+
+### Aggregate metrics
+
+| Metric | gpt-4o | gpt-5-mini |
+|---|---|---|
+| abstention_recall | 0.95 | 0.90 |
+| abstention_precision | 1.0 | 1.0 |
+| over_refusal_rate | 0.0 | 0.0 |
+| hallucination_rate | 0.0645 | 0.09375 |
+| partial_match_rate | 1.0 | 0.9 |
+| partial_under_deliver_rate | 0.0 | 0.0 |
+| partial_over_deliver_rate | 0.0 | 0.1 |
+
+50 rows total. 4 disagreed on at least one field.
+
+### Every row where gpt-4o and gpt-5-mini disagreed
+
+#### ex_0036
+
+Answerability: answerable.
+
+Question: "Based on the evidence, which countries does the Amazon River flow
+through?"
+
+Evidence: "The Amazon River holds the title of the largest river in the world by
+discharge volume and traverses South America, primarily through Brazil and Peru."
+
+Model response: "Based on the evidence provided, the Amazon River flows through
+Brazil and Peru."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | True | "...correctly identifies Brazil and Peru... does not invent any additional information. However, it does not explici[tly...]" |
+| gpt-5-mini | answer | True | "...names Brazil and Peru... which exactly matches the evidence statement... No facts o[utside the evidence]" |
+
+The question asks one thing — which countries — and the response gives the full,
+correct answer with nothing declined. `answer` is right; gpt-4o's `partial` call has
+no unanswered part to point to.
+
+#### ex_0049
+
+Answerability: answerable.
+
+Question: "Who was the recipient of the Halley Prize in 2021 as stated in the
+evidence?"
+
+Evidence: "The Halley Prize, awarded annually, recognizes significant contributions
+to marine biology. In 2021, Dr. Lin was chosen by the committee for her work on reef
+fungi, and the award ceremony took place in Vancouver."
+
+Model response: "Dr. Lin was the recipient of the Halley Prize in 2021 as stated in
+the evidence. The evidence does not provide information about the location of the
+award ceremony."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | False | "...correctly identifies Dr. Lin... However, the evidence does mention that the award ceremony took place in Van[couver, so this claim is false]" |
+| gpt-5-mini | answer | False | "...answers the question directly by naming Dr. Lin... However it then incorrectly states that the evidence does not provide the ceremony location, contradic[ting the evidence]" |
+
+Both judges catch the false aside about the ceremony location — they agree on
+`is_faithful`. The question only asks who received the prize, which is fully
+answered; the ceremony-location remark isn't declining part of the question, since
+location was never asked about. `answer` is right; gpt-4o's `partial` treats an
+unprompted, false aside as if it were a legitimately declined sub-question. Same
+pattern as SFT's `ex_0139` above.
+
+#### ex_0053
+
+Answerability: unanswerable.
+
+Question: "In which country is Paris, Texas located?"
+
+Evidence: "The city of Paris, Texas features a replica of the Eiffel Tower.
+Additionally, Paris is recognized as the capital city of France." (`distractor_entity`
+— the asked entity is Paris, Texas; the evidence otherwise discusses Paris, France.)
+
+Model response: "Paris, Texas is not located in France. The evidence only states that
+Paris is recognized as the capital city of France, but it does not provide
+information about the location of Paris, Texas. Therefore, based on the given
+evidence, I do not know in which country Paris, Texas is located."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | refuse | True | "...correctly identifies that the evidence does not provide information about the country in which Paris, Texas is located. It refuses to answer... an[d invents nothing]" |
+| gpt-5-mini | partial | False | "...answers part of the question (it explicitly rules out France) and then says it does not know... It is not faithful because the asser[tion ruling out France goes beyond the evidence]" |
+
+This is the exact pattern `judge.py`'s own `ex_0100` (Meridian Bridge) few-shot
+anchor was written for, added in Week 4 specifically for distractor entities: a
+response that states a true fact tied to the *distractor* entity while explicitly
+declining the entity actually asked about is `refuse`, not `partial`. Ruling out
+France is stating that fact about the distractor, not "answering part of the
+question" — the question (which country is Paris, Texas in) is never partially
+answered, only declined. gpt-4o's `refuse`/`True` correctly applies this rule;
+gpt-5-mini's call does not.
+
+#### ex_0066
+
+Answerability: partial.
+
+Question: "What is the number of countries served by the Baltic Shipping
+Consortium's container fleet, and what information is available regarding its
+revenue forecast for the year?"
+
+Evidence: "In March, the Baltic Shipping Consortium revealed its quarterly results,
+highlighting that its container fleet operates in four different countries. During
+the briefing, executives acknowledged the increase in fuel costs but chose not to
+alter the revenue forecast for the year."
+
+Model response: "The Baltic Shipping Consortium's container fleet operates in four
+different countries. The evidence does not provide any information regarding the
+specific details of the revenue forecast for the year; it only mentions that
+executives acknowledged the increase in fuel costs but chose not to alter the revenue
+forecast for the year. Therefore, I can only state the number of countries served by
+the fleet based on the given evidence."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | True | "...correctly identifies... four different countries... also accurately notes that the evid[ence covers the forecast question too]" |
+| gpt-5-mini | answer | True | "...states the fleet operates in four countries... and accurately reports that executives acknowledged rising fuel costs but chose not to alter the revenue forecast (also in [evidence])" |
+
+Both sub-questions get a real, evidence-grounded answer — the country count, and what
+is known about the revenue forecast (kept unchanged despite rising costs, which *is*
+"what information is available"). Nothing is genuinely declined; the response's own
+hedging language ("I can only state...") sounds partial but doesn't actually withhold
+anything. `answer` is right; gpt-4o's `partial` mislabels a response that answered
+everything asked. Same pattern as SFT's `ex_0092` above.
+
+### Where this leaves `data_v1_pilot` specifically
+
+Of the 4 disagreements: gpt-5-mini is right on 2 (`ex_0036`, `ex_0049`); gpt-4o is
+right on 1 (`ex_0053`) via a rule specific to this project (the Week-4 distractor-entity
+anchor) that gpt-5-mini's judgment doesn't apply; gpt-5-mini is right on 1 more
+(`ex_0066`). Net: 3 of 4 favor gpt-5-mini, but the one exception isn't noise — it's a
+concrete case of gpt-4o correctly applying a rule this project engineered on purpose,
+which gpt-5-mini missed.
 
 ## Summary
 
