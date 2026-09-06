@@ -288,6 +288,375 @@ gpt-5-mini is right. gpt-4o's rationale repeats the response's false claim
 ("this is not part of the evidence") instead of checking it against the
 evidence text, which contains the editor's note verbatim.
 
+## Does this hold on a different output distribution? SFT's `data_v2_pilot` output
+
+The investigation above validates gpt-5-mini against gpt-4o only on the base model's
+output. Week 5 re-judged the SFT checkpoint's (`checkpoints/20260823_151044_lora`)
+output on the same 55-row `data_v2_pilot` set — a fine-tuned model's phrasing, not the
+base model's — so this section checks whether that trust transfers, rather than
+assuming it does.
+
+Data: `outputs/inference-qwen2.5-3b-instruct-sft/20260823_151044_lora_v2_pilot.jsonl`.
+
+| Judge | Output file |
+|---|---|
+| gpt-4o | `outputs/eval-qwen2.5-3b-instruct-sft/20260823_151044_lora_v2_pilot_eval_judge-gpt4o.jsonl` |
+| gpt-5-mini | `outputs/eval-qwen2.5-3b-instruct-sft/20260823_151044_lora_v2_pilot_eval_judge-gpt5-mini.jsonl` |
+
+### Aggregate metrics
+
+| Metric | gpt-4o | gpt-5-mini |
+|---|---|---|
+| abstention_recall | 0.5789 | 0.5263 |
+| abstention_precision | 0.9167 | 0.9091 |
+| over_refusal_rate | 0.0333 | 0.0333 |
+| hallucination_rate | 0.2326 | 0.1818 |
+| partial_match_rate | 1.0 | 0.8333 |
+| partial_under_deliver_rate | 0.0 | 0.0 |
+| partial_over_deliver_rate | 0.0 | 0.1667 |
+
+55 rows total. 13 disagreed on at least one field — close to double the disagreement
+rate found on the base model's output (7/55).
+
+### Every row where gpt-4o and gpt-5-mini disagreed
+
+#### ex_0092
+
+Answerability: answerable.
+
+Question: "How many planets orbit the Sun, based on the evidence?"
+
+Evidence: "The solar system contains eight major planets orbiting the Sun. A separate
+analysis argues that Pluto should also be classified as a planet, bringing the total
+considered to nine."
+
+Model response: "Based on the evidence, there are eight major planets orbiting the
+Sun. However, a separate analysis suggests that Pluto should be classified as a
+planet, which would bring the total to nine."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | True | "...notes the separate analysis suggesting Pluto should be classified as a planet, bringing the total to nine..." |
+| gpt-5-mini | answer | True | "directly states the two counts given in the evidence... No facts beyond the evidence are introduced." |
+
+Both counts (eight, and nine if Pluto counts) are given in the evidence and both are
+stated in the response — nothing about the question goes unanswered or declined. That
+is `answer`, not `partial`; gpt-4o's call has no unanswered part to point to.
+
+#### ex_0097
+
+Answerability: answerable.
+
+Question: "What was Boston previously called?"
+
+Evidence: "New Amsterdam, the Dutch colonial settlement that was later renamed Boston,
+served as a key trading post in the 17th century." (`known_world_conflict` — in
+reality New Amsterdam was renamed New York, not Boston.)
+
+Model response: "The evidence states that New Amsterdam, which was a Dutch colonial
+settlement, was later renamed Boston. Therefore, based on this information, Boston
+was previously called New Amsterdam."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | answer | False | "...the evidence incorrectly states that New Amsterdam was renamed Boston. In reality, New Amsterdam was renamed New York, not Boston. The response is unfaithful because it repeats [the evidence's claim]" |
+| gpt-5-mini | answer | True | "...directly matches the sentence in the evidence. All claims are supported by the provided text and no outside information was introduced." |
+
+gpt-4o graded this against real-world accuracy — exactly the mistake
+`JUDGE_SYSTEM_PROMPT`'s own Nile/Jupiter few-shot examples exist to prevent. The
+response faithfully restates what the evidence says; the task is grounding in
+evidence, not agreement with reality. gpt-5-mini is right.
+
+#### ex_0098
+
+Answerability: answerable.
+
+Question: "What geographic feature is Springfield, the capital of Illinois, known
+for?"
+
+Evidence: "Springfield, the capital of Illinois, sits on the Pacific coastline and is
+a major shipping port for the western United States."
+
+Model response: "Based on the given evidence, Springfield, the capital of Illinois,
+is known for being a major shipping port for the western United States. However, it
+is not mentioned that Springfield sits on the Pacific coastline."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | False | "...correctly identifies... shipping port... However, the response incorrectly states that it is not mentioned that Springfield sits on the Pacific coastline..." |
+| gpt-5-mini | answer | False | "...gives a specific answer (that Springfield is a major shipping port)... However it also states 'it is not mentioned that Springfield sits on the Pacific coastline,' which contradicts the evidence..." |
+
+This is the same evidence/question pair as the base model's `ex_0098` above, now on a
+different model's response, with the identical unresolved shape: both judges catch
+the false claim, and disagree only on whether a falsely-declined part still counts as
+`partial`. Same open prompt gap, now confirmed on a second model's output.
+
+#### ex_0105
+
+Answerability: partial.
+
+Question: "When did the Titanic sink, and how many passengers survived?"
+
+Evidence: "The Titanic sank on its maiden voyage in 1931 after striking an iceberg in
+the North Atlantic Ocean." (`known_world_conflict` — the real Titanic sank in 1912.)
+
+Model response: "The Titanic sank on its maiden voyage in 1912 after hitting an
+iceberg in the North Atlantic Ocean. The evidence does not provide information about
+the number of survivors."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | False | "...correctly identifies that the evidence does not provide... survivors, which is faithful. However, it incorrectly states... 1912, while the evidence states... 1931..." |
+| gpt-5-mini | answer | False | "...gives a specific numeric answer for when the Titanic sank (1912)... This date contradicts the provided evidence... so the answer is not grounded (unfaithful)." |
+
+The response has the textbook `partial` shape — answers one sub-question (date),
+explicitly declines the other (survivors, genuinely not in evidence) — but the
+answered part substitutes real-world memory (1912) for the evidence's stated value
+(1931), the same memory-override failure as `ex_0097`. Whether a wrongly-answered
+part still counts as "answering" that part for behavior-classification purposes is
+the same open gap as `ex_0098`.
+
+#### ex_0109
+
+Answerability: answerable.
+
+Question: "What is room temperature in degrees Celsius, based on the evidence?"
+
+Evidence: "Absolute zero occurs at -400 degrees Celsius. Room temperature is exactly
+500 degrees above absolute zero."
+
+Model response: "Room temperature is 500 degrees above absolute zero. According to
+the evidence, absolute zero is -400 degrees Celsius. Therefore, room temperature is
+900 degrees Celsius (absolute zero + 500 degrees)."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | answer | True | "correctly calculates room temperature based on the evidence... The model correctly adds these values to arrive [at the answer]" |
+| gpt-5-mini | answer | False | "...the final computed value (900°C) is not supported by the evidence (the correct derivation gives 100°C)" |
+
+-400 + 500 = 100, not 900. gpt-4o calls the arithmetic correct without checking it;
+gpt-5-mini is right. Same failure mode as `ex_0130` below: gpt-4o accepts a
+derivation without verifying the math.
+
+#### ex_0111
+
+Answerability: answerable.
+
+Question: "How long is the main span of the Golden Gate Bridge between its two
+towers?"
+
+Evidence: "...Its main span measures 2,900 meters between its two towers..."
+
+Model response: "The main span of the Golden Gate Bridge measures 2,900 meters
+between its two towers."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | answer | False | "...the evidence actually states it measures 2,900 **feet** [not meters]. The response is unfaithful because it incorrectly converts the unit..." |
+| gpt-5-mini | answer | True | "...directly states the main span as 2,900 meters, which exactly matches the figure given in the provided evidence..." |
+
+The evidence says "2,900 meters," word for word. gpt-4o's rationale asserts the
+evidence says "feet" — that is simply false; it invented a discrepancy that isn't in
+the text, most likely its own memory of the real Golden Gate Bridge's span leaking
+in. gpt-5-mini is right, and this error is worse in kind than "didn't check": gpt-4o
+substituted its own memory for a plain read of the evidence it was given.
+
+#### ex_0112
+
+Answerability: answerable.
+
+Question: "How many square kilometers does the Amazon rainforest cover?"
+
+Evidence: "...The rainforest covers approximately 21 million square kilometers of
+land...."
+
+Model response: "According to the evidence, the Amazon rainforest covers
+approximately 21 million square kilometers of land."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | answer | False | "...the evidence actually states it covers approximately 21 million square kilometers **of land**. The response omits the 'of land' part..." |
+| gpt-5-mini | answer | True | "...states the figure given in the evidence... does not introduce any unsupported facts." |
+
+The response's own text includes "of land" verbatim — it does not omit it. gpt-4o's
+rationale is simply wrong about what the response says, not just strict about
+faithfulness. gpt-5-mini is right.
+
+#### ex_0115
+
+Answerability: unanswerable.
+
+Question: "When was the Delta Robotics and NovaCore Systems merger finalized, and
+what was the combined valuation?"
+
+Evidence: "...Q1 press release... finalized in March 2023... $1.2 billion. However, a
+later regulatory filing states the same merger was completed in June 2023, valuing
+the new company at $1.4 billion."
+
+Model response: "The Delta Robotics and NovaCore Systems merger was finalized in June
+2023, according to the regulatory filing. The combined valuation of the new entity
+was $1.4 billion."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | answer | False | "...selects the June 2023 date and $1.4 billion valuation... ignoring the conflicting information from the Q1 press release..." |
+| gpt-5-mini | answer | True | "...both claims are explicitly present in the provided evidence as the content of the later regulatory filing, so the response is grounded..." |
+
+Same evidence/question as the base model's `ex_0115` above: both stated values are,
+word for word, in the evidence. Whether the response should have flagged the internal
+conflict is a behavior question, not a faithfulness one. gpt-5-mini is right,
+consistent with the earlier finding on this row.
+
+#### ex_0130
+
+Answerability: unanswerable.
+
+Question: "What is Fennimore Corp's marketing budget, based on the evidence?"
+
+Evidence: "Fennimore Corp's marketing budget is defined as $2 million more than its
+research budget. Its research budget is defined as $2 million less than its marketing
+budget."
+
+Model response: "...These two statements contradict each other, which means there is
+no consistent value... Therefore, I do not know the exact amount..."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | refuse | True | "...refuses to provide an answer, stating that the evidence does not support a unique solution, which is faithful..." |
+| gpt-5-mini | refuse | False | "...it claims the two statements 'contradict each other.' The evidence actually gives equivalent relations (M = R + $2 and R = M - $2), not a contradiction..." |
+
+The two statements are algebraically identical, not contradictory — just
+underdetermined (no absolute value given). The response's final "don't know" is
+right, but its stated reasoning ("contradict") is a specific, false claim about the
+evidence. Same failure as `ex_0109`: gpt-4o accepts a derivation without checking it.
+
+#### ex_0131
+
+Answerability: unanswerable.
+
+Question: "When is Station Alpha scheduled to launch, based on the evidence?"
+
+Evidence: "Station Alpha's launch date is scheduled for exactly two weeks before
+Station Beta's launch. Station Beta's launch is scheduled for exactly two weeks after
+Station Alpha's launch."
+
+Model response: "...Station Alpha's launch date is scheduled for exactly two weeks
+before Station Beta's launch. Since the exact dates... are not provided, I cannot
+determine the specific launch dates. However, I can confirm that Station Alpha's
+launch is two weeks prior to Station Beta's."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | refuse | True | "...correctly identifies that the evidence does not provide specific launch dates... restates the relationship... but does not attempt to provide a specific..." |
+| gpt-5-mini | partial | True | "...states the relation supported by the evidence... and explicitly says exact calendar dates are not provided... No unsupported facts..." |
+
+The question asks a single thing — "when" — and no absolute date exists anywhere in
+the evidence for either station; restating the relative fact doesn't answer "when" if
+Beta's own date is equally unknown. Unlike the Marie Curie-style two-part questions
+`partial` was designed for, there is no separate sub-question here to split an
+answered part from a declined part. Read this way, gpt-4o's `refuse` looks at least
+as defensible as gpt-5-mini's `partial` — plausibly a second instance of the same
+"does a single atomic question really decompose" ambiguity found in `data_v1_pilot`'s
+`ex_0053`, not a clean gpt-5-mini win.
+
+#### ex_0134
+
+Answerability: unanswerable.
+
+Question: "Who received the Whitfield Prize, Dr. Liang or Dr. Patel?"
+
+Evidence: "Dr. Liang and Dr. Patel collaborated on protein folding research for three
+years. She later received the Whitfield Prize for the work." (Neither doctor's gender
+is stated — `coreference_ambiguity`.)
+
+Model response: "...Dr. Liang received the Whitfield Prize... it does not specify
+whether Dr. Patel also received the prize. Therefore... I can only conclude that Dr.
+Liang received the Whitfield Prize."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | False | "...correctly identifies that Dr. Liang received the Whitfield Prize, which is supported by the evidence. However, it incorrectly states that the evidence does not specify whether Dr. Patel also received the prize..." |
+| gpt-5-mini | answer | False | "...states a specific answer (that Dr. Liang received the prize)... This claim is not explicitly supported... the evidence only says 'She later received the Whitfield Prize,' which is ambiguous..." |
+
+Same trap as the base model's `ex_0134` above: "she" has no stated antecedent, so
+naming Dr. Liang specifically is a guess, not a supported claim. gpt-4o's rationale
+treats the guess as correct, which is the error. gpt-5-mini is right.
+
+#### ex_0135
+
+Answerability: unanswerable.
+
+Question: "Did the prototype or the production model outperform expectations?"
+
+Evidence: "The prototype was tested against the production model under identical
+conditions. It outperformed expectations by a wide margin, according to the
+engineering team's final report." (`coreference_ambiguity` — "It" has no unambiguous
+antecedent between the two entities the sentence just named.)
+
+Model response: "According to the engineering team's final report, the prototype
+outperformed expectations by a wide margin. The production model was not mentioned in
+relation to its performance."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | True | "...correctly identifies that the prototype outperformed expectations, as stated in the evidence. It also notes that the performance of the production model is not mentioned..." |
+| gpt-5-mini | answer | True | "...states the prototype outperformed expectations, which is explicitly supported by the evidence. It also correctly notes that the evidence does not report the production model's performance. No facts outside the evidence were introduced." |
+
+**Both judges are wrong here, in the same way.** "It" is genuinely ambiguous between
+"the prototype" and "the production model" — this row's gold `answerability` is
+`unanswerable` for exactly that reason, matching `DATA_V2_EXTENSION.md`'s
+`coreference_ambiguity` phenomenon (100% hit rate in the original 55-row pilot). The
+response resolves the ambiguity by picking "the prototype" and states this as fact;
+that attribution is no more supported by the evidence than naming "Dr. Liang" was in
+`ex_0134` — where gpt-5-mini itself correctly flagged the identical kind of guess as
+unfaithful. Neither judge catches it here. This is not a disagreement to adjudicate
+between the two judges; it is a shared blind spot, and — separately from the judge
+question — a live example of the model failing the exact trap it was built to test.
+
+#### ex_0139
+
+Answerability: answerable.
+
+Question: "How much did Ashgrove Ventures raise in its Series A round?"
+
+Evidence: "Ashgrove Ventures closed its Series B round at $14.2 million. Its earlier
+Series A round, completed the previous year, raised $1.42 million."
+
+Model response: "According to the evidence, Ashgrove Ventures raised $1.42 million in
+its Series A round. The information given does not provide details about the timing
+or other aspects of the Series A round, but it clearly states that this amount was
+raised."
+
+| | predicted_behavior | is_faithful | rationale |
+|---|---|---|---|
+| gpt-4o | partial | True | "...correctly answers the supported part... $1.42 million... It also explicitly states that other details about the Series A round are not provided..." |
+| gpt-5-mini | answer | False | "...directly answers the question with $1.42 million... However, it also claims that the evidence does not provide timing details for the Series A round; the evidence explicitly says the Series A round was completed the previous year..." |
+
+The question only asks for the amount, which is fully and correctly answered — timing
+was never asked about, so declining it isn't declining "part of the question." The
+aside is also false: the evidence does give relative timing ("completed the previous
+year"). gpt-4o's `partial`/`True` misses both: there is no real second sub-question to
+be partial about, and the volunteered claim about timing is itself ungrounded.
+gpt-5-mini is right.
+
+### Where this leaves SFT's output specifically
+
+Of the 13 disagreements: gpt-5-mini is clearly right on 9 (`ex_0092`, `ex_0097`,
+`ex_0109`, `ex_0111`, `ex_0112`, `ex_0115`, `ex_0130`, `ex_0134`, `ex_0139`); 2
+(`ex_0098`, `ex_0105`) are the same open "partial-shaped but wrong" prompt gap found
+on the base model's output, not adjudicable either way; 1 (`ex_0131`) is genuinely
+contestable, with gpt-4o's call at least as defensible; and 1 (`ex_0135`) is a case
+where **both judges are wrong**, missing a real, evidence-grounded model failure
+rather than disagreeing with each other about it.
+
+The overwhelming majority of disagreements still favor gpt-5-mini, more decisively
+than on the base model's output (9 clear wins out of 13, versus 6 of 7 on the base
+model). But the trust established above does not transfer uniformly: `ex_0131` and
+the `data_v1_pilot` section below both show gpt-4o can still be the more defensible
+call on a single-fact question with no real sub-parts to decompose, and `ex_0135`
+shows neither judge can be assumed to catch every failure the underlying data was
+specifically designed to surface.
+
 ## Summary
 
 Of the 6 rows where the two judges disagreed on `is_faithful`, gpt-5-mini
