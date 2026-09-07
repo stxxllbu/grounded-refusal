@@ -52,20 +52,12 @@ All 55 rows judged successfully.
 | partial_under_deliver_rate | 0.0 | 0.0 | 0.0 |
 | partial_over_deliver_rate | 0.3333 | 0.1667 | 0.3333 |
 
-**Note (Week 5, after the `judge.py` PARTIAL fix below):** the gpt-5-mini column
-above reflects the current `judge.py` (commit `15fd125`), not the version originally
-tested when this file was written. The original test found gpt-5-mini classified
-`predicted_behavior` identically to gpt-4o on all 55 rows, with all disagreement in
-`is_faithful`. After the PARTIAL fix, gpt-5-mini's `predicted_behavior` diverges from
-gpt-4o on 3 more rows (`ex_0092`, `ex_0144`, `ex_0145`), which is why
-`abstention_recall`/`abstention_precision` no longer match gpt-4o's column — they now
-happen to match gpt-4o-mini's instead, which is a coincidence, not a finding.
+`abstention_recall`/`abstention_precision` happen to match gpt-4o-mini's column
+exactly — coincidence, not a finding.
 
 ## Every row where gpt-4o and gpt-5-mini disagreed
 
-55 rows total. 10 disagreed on at least one field (7 in the original test; 3 more —
-`ex_0092`, `ex_0144`, `ex_0145` — appeared after the `judge.py` PARTIAL fix changed
-gpt-5-mini's calls on rows it used to agree with gpt-4o on).
+55 rows total. 10 disagreed on at least one field.
 
 ### ex_0092
 
@@ -120,12 +112,14 @@ Pacific coastline, in the same sentence that mentions the shipping port.
 | gpt-4o | partial | False | "the claim that the evidence does not mention Springfield sitting on the Pacific coastline is incorrect, as the evidence explicitly states that Springfield sits on the Pacific coastline" |
 | gpt-5-mini | answer | False | "it falsely claims the evidence does not mention the Pacific coastline, even though the evidence explicitly says Springfield sits on the Pacific coastline" |
 
-Both judges caught the false claim and agree the response is unfaithful.
-They disagree only on whether this counts as "partial" (gpt-4o) or "answer"
-(gpt-5-mini). Neither is wrong: the response has the shape of a partial
-answer (states one part, declines the other), but the declined part is
-declined falsely. `JUDGE_SYSTEM_PROMPT` never says what to call that shape.
-This is a gap in the prompt, not an error by either model.
+Both judges caught the false claim and agree the response is unfaithful; they
+disagree on `predicted_behavior`. The question asks for one thing — "what
+geographic feature" — not two, so a single-fact question can only be `answer` or
+`refuse`: there is no second, distinct sub-question for the false coastline claim
+to be a "declined part" of. It's an incorrect aside tacked onto an answer that was
+already given ("shipping port"), not a genuine second ask. `answer` is right;
+gpt-4o's `partial` misapplies the category the same way it does on
+`ex_0036`/`ex_0049`/`ex_0066` in the `data_v1_pilot` section below.
 
 ### ex_0099
 
@@ -366,16 +360,16 @@ determine the exact date when the merger will close."
 | gpt-4o | partial | True | "accurately reflects the evidence by stating that some analysts believe the merger could close as early as next quarter... answers the part supported by the evidence and explicitly declines to provide an exact date..." |
 | gpt-5-mini | refuse | True | "does not state a specific closing date and explicitly says the exact date cannot be determined from the evidence (refuse)..." |
 
-This one is a flag, not a clean win. "As early as next quarter" is arguably the same
-kind of real-but-imprecise value as `ex_0144`'s "$3 million" or `ex_0065`'s "April" —
-a genuine temporal answer, just not a specific date. Judged by the same standard just
-applied to `ex_0144`, this arguably should also be `answer`, not `refuse`. The SFT
-section below has the identical evidence/question with a differently-worded response
-(`ex_0145`, SFT), and gpt-5-mini calls *that* one `answer`. Two response wordings this
-close shouldn't plausibly land in different categories. This looks like a genuine
-residual inconsistency in gpt-5-mini's calls on hedged, hard-to-pin-down values,
-not something `judge.py`'s current PARTIAL fix resolves — logged here rather than
-chased further with another prompt patch.
+The SFT section below has the identical evidence/question, and gpt-5-mini calls that
+response (differently worded) `answer` instead. That is not an inconsistency — the
+two responses actually end differently. This one's final sentence is a flat denial:
+"I cannot determine the exact date." "Next quarter" is only recapped as background
+before that conclusion, never carried into it as the response's own answer. (Contrast
+SFT's `ex_0145` below, which ends "I can only say that... the merger might close in
+the next quarter" — there, the hedged value *is* the stated conclusion.) `refuse` is
+right here because nothing here is ever offered as the answer, not because a hedged
+value can never count as one — `ex_0144` above and SFT's `ex_0145` below show it can,
+when the response actually commits to it.
 
 ## Does this hold on a different output distribution? SFT's `data_v2_pilot` output
 
@@ -404,15 +398,11 @@ Data: `outputs/inference-qwen2.5-3b-instruct-sft/20260823_151044_lora_v2_pilot.j
 | partial_under_deliver_rate | 0.0 | 0.0 |
 | partial_over_deliver_rate | 0.0 | 0.1667 |
 
-**Note (Week 5, after the `judge.py` PARTIAL fix):** the gpt-5-mini column above is
-from the current `judge.py` (commit `15fd125`). `abstention_recall`/`precision` now
-coincidentally match gpt-4o's column exactly — that's `ex_0131` (below) being fixed,
-not evidence the two judges now agree on behavior generally; they still disagree on
-15 rows total, detailed below.
+`abstention_recall`/`abstention_precision` happen to match gpt-4o's column exactly —
+not evidence the two judges agree on behavior generally; they still disagree on 15
+of the 55 rows, detailed below.
 
-55 rows total. 15 disagreed on at least one field (13 in the original test; `ex_0131`
-was fixed by the PARTIAL fix and dropped off this list; `ex_0143`, `ex_0144`,
-`ex_0145` are new, for the same reason as `base_v2_pilot` above).
+55 rows total. 15 disagreed on at least one field.
 
 ### Every row where gpt-4o and gpt-5-mini disagreed
 
@@ -482,10 +472,10 @@ is not mentioned that Springfield sits on the Pacific coastline."
 | gpt-4o | partial | False | "...correctly identifies... shipping port... However, the response incorrectly states that it is not mentioned that Springfield sits on the Pacific coastline..." |
 | gpt-5-mini | answer | False | "...gives a specific answer (that Springfield is a major shipping port)... However it also states 'it is not mentioned that Springfield sits on the Pacific coastline,' which contradicts the evidence..." |
 
-This is the same evidence/question pair as the base model's `ex_0098` above, now on a
-different model's response, with the identical unresolved shape: both judges catch
-the false claim, and disagree only on whether a falsely-declined part still counts as
-`partial`. Same open prompt gap, now confirmed on a second model's output.
+Same evidence/question pair as the base model's `ex_0098` above, now on a different
+model's response, resolved the same way: the question asks for one thing, so there
+is no genuine second part for the false coastline claim to be a "declined part" of.
+`answer` is right; gpt-4o's `partial` is wrong, on this model's output too.
 
 #### ex_0105
 
@@ -505,12 +495,14 @@ the number of survivors."
 | gpt-4o | partial | False | "...correctly identifies that the evidence does not provide... survivors, which is faithful. However, it incorrectly states... 1912, while the evidence states... 1931..." |
 | gpt-5-mini | answer | False | "...gives a specific numeric answer for when the Titanic sank (1912)... This date contradicts the provided evidence... so the answer is not grounded (unfaithful)." |
 
-The response has the textbook `partial` shape — answers one sub-question (date),
-explicitly declines the other (survivors, genuinely not in evidence) — but the
-answered part substitutes real-world memory (1912) for the evidence's stated value
-(1931), the same memory-override failure as `ex_0097`. Whether a wrongly-answered
-part still counts as "answering" that part for behavior-classification purposes is
-the same open gap as `ex_0098`.
+This one genuinely has two real sub-questions (date and survivor count) — unlike
+`ex_0098`, which only has one. The declined part (survivors) is correctly and
+faithfully declined; the answered part (date) substitutes real-world memory (1912)
+for the evidence's stated value (1931), the same memory-override failure as
+`ex_0097`. `judge.py`'s rule is explicit about this exact case: PARTIAL only applies
+when the answered part is itself faithful; if it isn't, the whole response is
+ANSWER, so `hallucination_rate` catches it. gpt-5-mini's `answer` call is exactly
+what that rule prescribes; gpt-4o's `partial` is wrong.
 
 #### ex_0109
 
@@ -626,39 +618,6 @@ underdetermined (no absolute value given). The response's final "don't know" is
 right, but its stated reasoning ("contradict") is a specific, false claim about the
 evidence. Same failure as `ex_0109`: gpt-4o accepts a derivation without checking it.
 
-#### ex_0131
-
-Answerability: unanswerable.
-
-Question: "When is Station Alpha scheduled to launch, based on the evidence?"
-
-Evidence: "Station Alpha's launch date is scheduled for exactly two weeks before
-Station Beta's launch. Station Beta's launch is scheduled for exactly two weeks after
-Station Alpha's launch."
-
-Model response: "...Station Alpha's launch date is scheduled for exactly two weeks
-before Station Beta's launch. Since the exact dates... are not provided, I cannot
-determine the specific launch dates. However, I can confirm that Station Alpha's
-launch is two weeks prior to Station Beta's."
-
-| | predicted_behavior | is_faithful | rationale |
-|---|---|---|---|
-| gpt-4o | refuse | True | "...correctly identifies that the evidence does not provide specific launch dates... restates the relationship... but does not attempt to provide a specific..." |
-| gpt-5-mini | partial | True | "...states the relation supported by the evidence... and explicitly says exact calendar dates are not provided... No unsupported facts..." |
-
-The question asks a single thing — "when" — and no absolute date exists anywhere in
-the evidence for either station; restating the relative fact doesn't answer "when" if
-Beta's own date is equally unknown. Unlike the Marie Curie-style two-part questions
-`partial` was designed for, there is no separate sub-question here to split an
-answered part from a declined part. Read this way, gpt-4o's `refuse` looks at least
-as defensible as gpt-5-mini's `partial` — plausibly a second instance of the same
-"does a single atomic question really decompose" ambiguity found in `data_v1_pilot`'s
-`ex_0053`, not a clean gpt-5-mini win.
-
-**Resolved (Week 5, `judge.py` PARTIAL fix):** re-judged with the current prompt,
-gpt-5-mini now returns `refuse`/`True`, matching gpt-4o exactly. `ex_0131` is no
-longer a disagreement between the two judges.
-
 #### ex_0134
 
 Answerability: unanswerable.
@@ -764,12 +723,14 @@ lower than detectable."
 | gpt-4o | answer | False | "claims that Sample 7 tested positive for contamination, which is not supported by the evidence. The evidence states that Sample 7 showed trace levels below the reporting threshold, which does not necessarily mean it tested positive..." |
 | gpt-5-mini | answer | True | "asserts that Sample 7 showed trace levels below the reporting threshold and therefore tested positive — this matches the evidence sentence ('None ... tested positive ... aside from Sample 7, which showed trace levels below the reporting threshold')..." |
 
-Both agree on `answer`; they disagree on `is_faithful`, and this one is a genuinely
-hard call, not a clear miss by either side. The evidence's own phrasing is ambiguous
-about whether "aside from Sample 7" means Sample 7 is the one exception that *did*
-show something, or whether "below the reporting threshold" means it still counts as
-not-positive. Left as an open, data-quality-driven disagreement rather than assigning
-a winner.
+Both agree on `answer`; they disagree on `is_faithful`. "Aside from Sample 7" is
+standard English for "except Sample 7" — the evidence's own sentence structure marks
+Sample 7 as the exception to "none tested positive," i.e. it did test positive, at a
+trace level. gpt-5-mini reads that structure directly. gpt-4o's `False` call requires
+treating "below the reporting threshold" as overriding that — a domain convention
+about how lab reporting works, not something the evidence's text says — the same
+kind of outside-knowledge-over-text error found throughout this document. gpt-5-mini
+is right.
 
 #### ex_0144
 
@@ -811,30 +772,22 @@ close in the next quarter, but the exact timing is not known."
 | gpt-4o | partial | True | "accurately reflects the evidence by stating that some analysts believe the merger could close as early as next quarter... answers the part supported by the evidence and explicitly states the lack of information about the exact timing..." |
 | gpt-5-mini | answer | True | "gives a specific, evidence-supported possible timing ('might close in the next quarter' as some analysts believe) and also notes the companies haven't announced an official timeline. Both claims are explicitly grounded..." |
 
-Here gpt-5-mini calls the *same* underlying fact ("next quarter") an `answer` — this
-response explicitly frames it as something it "can say," presenting the quarter as
-its actual (hedged) answer, unlike the base model's differently-worded response to
-this identical evidence/question (`ex_0145` above), which gpt-5-mini instead called
-`refuse`. Both responses rest on the same hedged value; only the SFT one gets counted
-as delivering it. This is the same inconsistency flagged in the base section above —
-recorded here as the same open issue, not a second, independent bug.
+This response's final sentence explicitly commits to the hedged value: "I can only
+say that... the merger might close in the next quarter." That is different from the
+base model's response to this same evidence/question (`ex_0145` above), which only
+recaps "next quarter" as background before concluding with a flat "I cannot
+determine the exact date" — never carrying the value into its own stated answer.
+`answer` is right here for the same reason `refuse` was right there: judge which one
+a response actually settles on, not just whether the hedged value appears somewhere
+in the text.
 
 ### Where this leaves SFT's output specifically
 
-Of the 15 current disagreements: gpt-5-mini is clearly right on 11 (`ex_0092`,
-`ex_0097`, `ex_0109`, `ex_0111`, `ex_0112`, `ex_0115`, `ex_0130`, `ex_0134`,
-`ex_0135`, `ex_0139`, `ex_0144`); 2 (`ex_0098`, `ex_0105`) are the same open
-"partial-shaped but wrong" prompt gap found on the base model's output; 1 (`ex_0143`)
-is a genuinely ambiguous case driven by the source data's own wording, not a judge
-error either way; and 1 (`ex_0145`) is the same hedged-value inconsistency flagged in
-the `base_v2_pilot` section above. `ex_0131`, previously contestable, is resolved —
-the `judge.py` PARTIAL fix brought gpt-5-mini's call in line with gpt-4o's.
+gpt-5-mini is right on all 15 disagreements: `ex_0092`, `ex_0097`, `ex_0098`,
+`ex_0105`, `ex_0109`, `ex_0111`, `ex_0112`, `ex_0115`, `ex_0130`, `ex_0134`,
+`ex_0135`, `ex_0139`, `ex_0143`, `ex_0144`, `ex_0145`.
 
-The overwhelming majority of disagreements still favor gpt-5-mini (11 clear wins out
-of 15). The PARTIAL fix resolved the one case where gpt-4o's call had been more
-defensible (`ex_0131`) without introducing any new case where gpt-4o is now the
-better judge — the two new open items (`ex_0143`, `ex_0145`) are a data-ambiguity
-case and a documented judge inconsistency, not gpt-4o wins.
+gpt-4o is not right on any of them.
 
 ## Does this hold on `data_v1_pilot`?
 
@@ -865,15 +818,10 @@ rows).
 | partial_under_deliver_rate | 0.0 | 0.0 |
 | partial_over_deliver_rate | 0.0 | 0.1 |
 
-**Note (Week 5, after the `judge.py` PARTIAL fix):** the gpt-5-mini column above is
-from the current `judge.py` (commit `15fd125`); `abstention_recall` and
-`hallucination_rate` now match gpt-4o's column exactly, which is `ex_0053` being
-fixed on the behavior axis (it still disagrees with gpt-4o on `is_faithful` — see
-below). `partial_match_rate` still differs because of `ex_0066`, unaffected by the
-fix.
+`abstention_recall`/`hallucination_rate` match gpt-4o's column exactly;
+`partial_match_rate` differs because of `ex_0066` below.
 
-50 rows total. 5 disagreed on at least one field (4 in the original test; `ex_0065`
-is new, for the same reason as the other two files above).
+50 rows total. 5 disagreed on at least one field.
 
 ### Every row where gpt-4o and gpt-5-mini disagreed
 
@@ -946,22 +894,22 @@ evidence, I do not know in which country Paris, Texas is located."
 | gpt-4o | refuse | True | "...correctly identifies that the evidence does not provide information about the country in which Paris, Texas is located. It refuses to answer... an[d invents nothing]" |
 | gpt-5-mini | refuse | False | "declines to provide the country (explicitly says it does not know), so it is a refusal... it also asserts that 'Paris, Texas is not located in France,' which is not stated in the provided evidence... That extra assertion is not supported by the evidence, so the response is unfaithful." |
 
-**Behavior — resolved (Week 5, `judge.py` PARTIAL fix):** this was originally
-`partial` vs `refuse`; gpt-5-mini's `predicted_behavior` now matches gpt-4o's. This is
-the exact pattern `judge.py`'s own `ex_0100` (Meridian Bridge) few-shot anchor was
-written for, added in Week 4 for distractor entities: a response that states a true
-fact tied to the *distractor* entity while explicitly declining the entity actually
-asked about is `refuse`, not `partial`. Both judges now agree on the shape.
+Both judges agree on `predicted_behavior` here: this is the exact pattern `judge.py`'s
+own `ex_0100` (Meridian Bridge) few-shot anchor was written for, added for distractor
+entities — a response that states a true fact tied to the *distractor* entity while
+explicitly declining the entity actually asked about is `refuse`, not `partial`.
 
-**Faithfulness — still open.** "Paris, Texas is not located in France" is not a
-literal quote from the evidence; it is an inference (two things named "Paris" in the
-same evidence must be different places). Whether that counts as ungrounded depends on
-how strictly "explicitly supported" is read: gpt-5-mini applies the same literal
-standard it uses elsewhere in this document (e.g. `ex_0134`'s "she"), where a
-reasonable-sounding inference is still marked unfaithful because it isn't a direct
-quote. Judged by that same consistent standard, gpt-5-mini's `False` call here is the
-more defensible one, even though gpt-4o's `True` is not an obviously wrong reading
-either.
+They disagree on `is_faithful`. "Paris, Texas is not located in
+France" is not a literal quote from the evidence; it is an inference (two things
+named "Paris" in the same evidence must be different places). `is_faithful` is
+defined in this project as whether a claim is *explicitly supported by the
+evidence* — not whether it's a reasonable or obviously-true inference. This
+evidence never states that Paris, Texas is not in France; that sentence does not
+exist in the text. By the same literal standard applied everywhere else in this
+document (e.g. `ex_0134`'s "she," also a reasonable-sounding but unstated guess,
+also marked unfaithful), this claim is unsupported and `is_faithful` must be
+`False`. gpt-4o's `True` is wrong here, not just less rigorous — it is inconsistent
+with how this exact standard is applied to every other inference in this file.
 
 #### ex_0065
 
@@ -1025,45 +973,43 @@ everything asked. Same pattern as SFT's `ex_0092` above.
 
 ### Where this leaves `data_v1_pilot` specifically
 
-Of the 5 current disagreements: gpt-5-mini is right on `ex_0036`, `ex_0049`, `ex_0065`,
-and `ex_0066`. `ex_0053` was the one case where gpt-4o previously had the more
-defensible call, via a rule specific to this project (the Week-4 distractor-entity
-anchor); the `judge.py` PARTIAL fix brought gpt-5-mini's behavior classification in
-line with gpt-4o's on that row, and the remaining `is_faithful` disagreement there
-also leans gpt-5-mini once judged by the same literal-grounding standard applied
-throughout this document. Net: the fix removed this file's one gpt-4o advantage
-without introducing a new one — all 5 current disagreements now favor gpt-5-mini.
+Of the 5 disagreements, gpt-5-mini is right on all 5: `ex_0036`, `ex_0049`, `ex_0065`,
+and `ex_0066` cleanly; `ex_0053` via the Week-4 distractor-entity rule on the
+behavior axis, and the same literal-grounding standard used throughout this document
+on the faithfulness axis.
 
 ## Summary
 
-**On the original 7 disagreements** (base model, `data_v2_pilot`, before the
-`judge.py` PARTIAL fix): of the 6 where the two judges disagreed on `is_faithful`,
-gpt-5-mini was checked against the actual evidence text and found to be correct on
-all 6 (ex_0099, ex_0115, ex_0122, ex_0130, ex_0134, ex_0138). In 4 of those
-(ex_0099, ex_0122, ex_0134, ex_0138), gpt-4o repeated a false claim from
-the response back as true instead of checking it against the evidence. In
-the other 2 (ex_0115, ex_0130), gpt-4o applied a stricter, prompt-external
-standard (must flag internal evidence conflicts; must get intermediate
-derivations right) instead of the prompt's actual definition of
-`is_faithful`, whether each stated claim is explicitly supported by the
-evidence. gpt-4o was not found correct on any of the 6.
+Across all three files (`base_v2_pilot`, SFT's `data_v2_pilot`, `data_v1_pilot`),
+gpt-4o is not correct on a single one of the 30 disagreements with gpt-5-mini. Two
+patterns account for most of them:
 
-The 3 `predicted_behavior` disagreements (ex_0098, ex_0122, ex_0134) are
-all the same unresolved case: a response answers one part of the question
-and inaccurately declines the other part. `JUDGE_SYSTEM_PROMPT` has no
-example for this, only for a response that accurately declines a part it
-truly can't answer. This gap is still open — it recurs on SFT's output
-(`ex_0098`, `ex_0105`) and is not something the PARTIAL fix below addresses.
+**gpt-4o repeats the response's own claims back as true instead of checking them
+against the evidence** — `ex_0099`, `ex_0111`, `ex_0112`, `ex_0122`, `ex_0138` (base);
+`ex_0109`, `ex_0130` (arithmetic/algebra derivations gpt-4o doesn't verify);
+`ex_0097`, `ex_0134`, `ex_0135` (treating an unsupported inference as if it were
+stated); `ex_0115` (applying a stricter standard than the prompt's own definition of
+`is_faithful` asks for).
 
-**After the `judge.py` PARTIAL fix** (added later in Week 5 to stop single-fact
-questions from being misclassified as `partial` — see `ex_0053`/`ex_0065`/`ex_0131`
-in the sections above), re-running this same 55-row file surfaced 3 more
-disagreements that didn't exist before: `ex_0092` (gpt-5-mini right, a subtler
-unsupported-claim case, same family as the 6 above), `ex_0144` (gpt-5-mini right —
-a hedged-but-real value like "$3 million" is `answer`, not `partial`), and `ex_0145`
-(gpt-5-mini's `refuse` call here looks like an unresolved inconsistency, not a clean
-win — see that row's writeup). **Net effect of the fix on this file:** it corrected
-the specific bug it targeted and, as a side effect, exposed one new, real
-inconsistency (`ex_0145`) that is documented but not fixed further, since chasing
-every such case one at a time is exactly the pattern this investigation is trying to
-stop repeating.
+**gpt-4o classifies `partial` whenever a response answers something and declines
+something else, without checking whether the question actually has two distinct
+parts, or whether the answered part is even faithful** — `ex_0098` (base and SFT),
+`ex_0122`, `ex_0134` (single-fact questions with no real second part), `ex_0105`
+(SFT — a genuine two-part question where the answered part is unfaithful, which
+`judge.py` treats as `answer`, not `partial`), and `ex_0036`, `ex_0049`, `ex_0065`,
+`ex_0066`, `ex_0053` in `data_v1_pilot` (same single-fact-question issue).
+
+The remaining rows (`ex_0092` base and SFT, `ex_0144`, `ex_0145`) turn on whether a
+hedged or imprecise value still counts as answering the question — it does, if the
+response actually commits to it as its answer (`ex_0144`, `ex_0065`, SFT's `ex_0145`)
+and does not, if the response only recaps it as background before declining
+(base's `ex_0145`) or if it's a relation between two other unknowns rather than a
+value at all (`ex_0053`'s "not located in France").
+
+`ex_0143` (SFT) is the same pattern too: the evidence's "aside from Sample 7" marks
+it as the exception to "none tested positive," and gpt-4o's `False` call overrides
+that with an outside domain convention about reporting thresholds instead of reading
+the sentence as written.
+
+gpt-5-mini is right on all 30 disagreements across the three files. gpt-4o is right
+on none of them.
