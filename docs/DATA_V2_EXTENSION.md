@@ -81,27 +81,6 @@ from `data_v2.jsonl`, not something invented to fit the name.
 | `red_herring` | Evidence includes extra numbers or facts that aren't needed to answer the question, usually alongside a multi-step calculation. Correct behavior uses only the relevant facts. | `ex_0118`: a sector-wide growth percentage and an industry-average estimate are both given, but neither is used in the actual calculation the question requires. |
 | `multi_hop_arithmetic` | The answer requires combining two or more stated values through arithmetic. It isn't a single lookup. | `ex_0118` (above): the answer comes from chaining two stated relationships together. |
 
-### The `tier_*` labels
-
-`tier_extreme`, `tier_stress`, `tier_confused`, and `tier_tangled` are a second
-layer of tags on top of the phenomenon tags above. Like those tags, they were
-never formally defined anywhere before this document.
-
-To find out what they actually mean in practice, this document checked which
-phenomenon tags each tier co-occurs with in `data_v2.jsonl`. Based on that:
-
-- `tier_extreme` mostly carries no other tag. It's a single plain, undisguised
-  `known_world_conflict`-style fact, with nothing else stacked on it.
-- `tier_confused` pairs with one other mechanism, most often
-  `coreference_ambiguity` or `hedged_uncertainty`, sometimes
-  `false_presupposition`, `circular_evidence`, or `embedded_instruction`.
-- `tier_stress` is almost entirely `conflicting_evidence` (58 of 67 rows).
-- `tier_tangled` stacks multiple mechanisms in one row, in any combination of
-  coreference, hedged, conflicting, arithmetic, distractor, and red herring.
-
-This grouping comes from counting co-occurrences in the data. It is not read
-from any authoritative source, because none exists.
-
 ## From pilot hit rate to the 600-row allocation
 
 The table below is the core result of this extension. For each phenomenon
@@ -123,7 +102,7 @@ in this table. This document does not report their individual hit rate.
 |---|---:|---:|---|
 | `coreference_ambiguity` | 100% (3/3) | 118 | Broke the model 3 times out of 3 in the pilot. Scaled to about 20 domains, plus stacked combinations with hedging, distractor, and partial-evidence rows. |
 | `hedged_uncertainty` | 100% (2/2) | 106 | Broke the model 2 times out of 2 in the pilot. Scaled with varied hedge markers: unnamed sources, "has not ruled out," leaked or unverified reports. |
-| `distractor_entity` + `partial_evidence` combined | 100% (1/1) | folded into `tier_tangled` stacks | Stacking two traps in one row broke the model outright in the pilot's single test case. |
+| `distractor_entity` + `partial_evidence` combined | 100% (1/1) | folded into multi-mechanism stacks | Stacking two traps in one row broke the model outright in the pilot's single test case. |
 | `conflicting_evidence` | 67% (2/3) | 79 | Both pilot failures picked the *later-appearing* source. That's a recency bias. Order-reversed pairs were added to test whether it replicates. |
 | `negation_exception` | 50% (1/2) | **0** | Not scaled up despite a non-zero hit rate — unexplained gap, see [Caveats](#caveats). |
 | `embedded_instruction` | 33% (1/3) | **0** | Same gap. |
@@ -150,12 +129,11 @@ a very famous fact tripped it up 33% of the time instead. The same pattern held
 for `distractor_entity`: the subtle, single-mechanism version was never wrong
 (0/2), but stacking it with `partial_evidence` broke the model outright (1/1).
 
-Second, a large share of the 545 new rows are combined, stacked variants. These
-are tagged `tier_tangled`, and include distractor+partial+arithmetic,
-conflicting+partial, coreference+partial, distractor+coreference,
-hedged+distractor, and hedged+coreference. They aren't broken out as their own
-row in the table above because they don't map to a single phenomenon. They're
-also where most of the 80 `partial` rows come from.
+Second, a large share of the 545 new rows are combined, stacked variants:
+distractor+partial+arithmetic, conflicting+partial, coreference+partial,
+distractor+coreference, hedged+distractor, and hedged+coreference. They aren't
+broken out as their own row in the table above because they don't map to a
+single phenomenon. They're also where most of the 80 `partial` rows come from.
 
 ## Final composition (600 rows)
 
@@ -168,13 +146,9 @@ The most common tags across all 600 rows:
 
 | Tag | Count |
 |---|---:|
-| `tier_tangled` | 265 |
-| `tier_extreme` | 138 |
-| `tier_confused` | 130 |
 | `coreference_ambiguity` | 121 |
 | `hedged_uncertainty` | 108 |
 | `conflicting_evidence` | 82 |
-| `tier_stress` | 67 |
 | `multi_hop_arithmetic` | 22 |
 
 These are occurrence counts. A row can carry several tags at once, so this
@@ -204,9 +178,9 @@ central research question is actually about.
 
 ## Caveats
 
-- **Counts overlap.** A row can carry more than one phenomenon tag (a
-  `tier_tangled` row combining coreference + hedging counts toward both), so
-  the "New rows" column above doesn't sum to 545.
+- **Counts overlap.** A row can carry more than one phenomenon tag (e.g. one
+  combining coreference ambiguity + hedging counts toward both), so the
+  "New rows" column above doesn't sum to 545.
 - **Allocation gap.** `negation_exception` and `embedded_instruction` had
   non-zero pilot hit rates (50%, 33%) but got zero new rows, unlike other
   non-zero-hit-rate phenomena. Unexplained, not fixed here.
