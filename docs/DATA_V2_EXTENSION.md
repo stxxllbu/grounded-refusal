@@ -110,8 +110,8 @@ and how many of the 545 new rows (`ex_0146`–`ex_0690`) were built around it.
 Every count is exact, pulled directly from `data/data_v2.jsonl`. None are
 estimates.
 
-Read [Why the counts don't sum to 545](#why-the-counts-dont-sum-to-545) below
-before adding up the "New rows" column.
+Per-phenomenon counts overlap (see [Caveats](#caveats)), so don't add up the
+"New rows" column expecting 545.
 
 The rows below name the single- and double-mechanism constructions that were
 common or notable enough to track individually. About a dozen pilot rows stack
@@ -125,8 +125,8 @@ in this table. This document does not report their individual hit rate.
 | `hedged_uncertainty` | 100% (2/2) | 106 | Broke the model 2 times out of 2 in the pilot. Scaled with varied hedge markers: unnamed sources, "has not ruled out," leaked or unverified reports. |
 | `distractor_entity` + `partial_evidence` combined | 100% (1/1) | folded into `tier_tangled` stacks | Stacking two traps in one row broke the model outright in the pilot's single test case. |
 | `conflicting_evidence` | 67% (2/3) | 79 | Both pilot failures picked the *later-appearing* source. That's a recency bias. Order-reversed pairs were added to test whether it replicates. |
-| `negation_exception` | 50% (1/2) | **0** | Not scaled up, despite a non-zero hit rate. See [the gap noted below](#a-gap-in-the-allocation-logic). |
-| `embedded_instruction` | 33% (1/3) | **0** | Same gap. See below. |
+| `negation_exception` | 50% (1/2) | **0** | Not scaled up despite a non-zero hit rate — unexplained gap, see [Caveats](#caveats). |
+| `embedded_instruction` | 33% (1/3) | **0** | Same gap. |
 | `known_world_conflict`, plain and undisguised | 33% (2/6) | 144 (123 `answerable`, 21 `partial`) | Both pilot failures involved *very famous* facts (Boston's renaming history, Springfield's geography). Scaled up using genuinely iconic facts, not obscure ones. |
 | `known_world_conflict` + multi-hop arithmetic | 0% (0/5) | 0 | Not scaled up. |
 | `known_world_conflict` + fact buried in a longer paragraph | 0% (0/4) | 0 | Not scaled up. |
@@ -156,32 +156,6 @@ conflicting+partial, coreference+partial, distractor+coreference,
 hedged+distractor, and hedged+coreference. They aren't broken out as their own
 row in the table above because they don't map to a single phenomenon. They're
 also where most of the 80 `partial` rows come from.
-
-### Why the counts don't sum to 545
-
-A single row is often tagged with more than one phenomenon. A `tier_tangled`
-row combining coreference ambiguity with a hedge, for example, counts toward
-both `coreference_ambiguity` and `hedged_uncertainty` in the table above. The
-"New rows" column is a set of per-phenomenon occurrence counts. It is not a
-partition of the 545 rows into separate, non-overlapping buckets. Adding the
-column up gives more than 545. That's expected, not an error.
-
-### A gap in the allocation logic
-
-`negation_exception` and `embedded_instruction` both had a non-zero hit rate in
-the pilot: 50% and 33%. This extension's own stated rule was to allocate new
-rows "almost entirely to phenomena with a non-zero empirical hit rate." By that
-rule, both of these should have gotten some share of the 545 new rows.
-
-They got none. `data_v2.jsonl` has exactly 2 `negation_exception` rows and 3
-`embedded_instruction` rows in total: the same counts as the original pilot,
-with nothing added.
-
-This wasn't a deliberate exclusion. The phenomena with a 0% pilot hit rate were
-left out on purpose, and that decision is recorded in the table above. There is
-no equivalent record explaining why these two, with real hit rates, were left
-out too. It's flagged here as an open gap for whoever next extends this
-dataset. This document does not fix it.
 
 ## Final composition (600 rows)
 
@@ -239,24 +213,19 @@ central research question is actually about.
   exist only as informal strings, and were undocumented anywhere before this
   file.
 
-## What's verified vs. what's a hypothesis
+## Caveats
 
-Only the first 72 new rows (`ex_0146`–`ex_0217`) were designed directly from the
-judge-log hit-rate table above. The remaining 473 rows extrapolate the same
-mechanisms to more domains and entity names, but were never re-run against the
-actual base model. The empirical loop that produced the hit-rate table has not
-been closed a second time on the larger set.
-
-Before trusting this file's difficulty for training or for headline eval
-numbers, run `inference/run_inference.py` and `eval/run_eval.py` on a sample
-(or on all of `ex_0146`–`ex_0690`), and check whether the hit rates above still
-hold at scale. Two things are worth checking in particular:
-
-- the two patterns invented for this extension with no pilot precedent: the
-  "similarly-named entity, real value stated directly" answerable control, and
-  the multi-mechanism `tier_tangled` stacks
-- whether the `conflicting_evidence` recency bias (the model favoring the
-  later-mentioned source) replicates on the order-reversed pairs included here
+- **Counts overlap.** A row can carry more than one phenomenon tag (a
+  `tier_tangled` row combining coreference + hedging counts toward both), so
+  the "New rows" column above doesn't sum to 545.
+- **Allocation gap.** `negation_exception` and `embedded_instruction` had
+  non-zero pilot hit rates (50%, 33%) but got zero new rows, unlike other
+  non-zero-hit-rate phenomena. Unexplained, not fixed here.
+- **Unverified at scale.** Only `ex_0146`–`ex_0217` (72 rows) were built
+  directly from the hit-rate table above; the remaining 473 extrapolate the
+  same mechanisms to new domains/entities but were never re-run against the
+  base model. Run `eval/run_eval.py` on the full set before trusting these
+  hit rates for training or headline numbers.
 
 ## How to run
 
