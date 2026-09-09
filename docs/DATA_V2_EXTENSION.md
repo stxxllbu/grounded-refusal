@@ -201,6 +201,6 @@ PYTHONPATH=src python -m grounded_refusal.inference.run_inference \
 
 PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --input outputs/inference-qwen2.5-3b-instruct/base_v2_full.jsonl \
-  --output outputs/eval-qwen2.5-3b-instruct/base_v2_full_eval.jsonl \
-  --overwrite --max-workers 1
+  --output outputs/eval-qwen2.5-3b-instruct/base_v2_full_eval_judge-gpt5-mini.jsonl \
+  --judge-model gpt-5-mini --overwrite
 ```
