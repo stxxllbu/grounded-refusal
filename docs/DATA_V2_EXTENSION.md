@@ -191,27 +191,16 @@ central research question is actually about.
 
 ## Conventions used for the new rows
 
-- **`id`:** `ex_0146`–`ex_0690`, continuing from the pilot's last id (`ex_0145`).
-  Confirmed not to collide with `data/generated/data_v1_layer1_generated.jsonl`,
-  which occupies `ex_0071`–`ex_0120`. That file is an unused draft for the
-  deferred full `data_v1` build.
-- **`split`:** `"dev"` for every new row, matching the pilot's convention.
-  Re-partitioning the 600 rows into train/eval splits is left to whoever
-  consumes this file. It isn't done here.
+- **`id`:** `ex_0146`–`ex_0690`, continuing from `ex_0145`. No collision with
+  `data/generated/data_v1_layer1_generated.jsonl` (`ex_0071`–`ex_0120`, an
+  unused draft).
+- **`split`:** `"dev"` for every new row, matching the pilot.
 - **`dataset_version`:** `"v2"`.
-- **`metadata.creation_process`:** `"llm_generated"`. This is distinct from the
-  original 55 rows' `"manual"`, since the new rows were not hand-typed by a
-  person, and did not go through the Layer1→Layer2 template pipeline either.
-  It's an honest label about how the data was made, not a claim about quality.
-- **`evidence_challenge`:** set only when one of the schema's three defined
-  values (`distractor_entity`, `known_world_conflict`, `partial_evidence`)
-  literally applies. Every other phenomenon in this document lives only in the
-  free-text `tags` field, the same as in the original 55 rows. This is a
-  pre-existing gap, not something this extension fixes: `DATA_LABELS.md` and
-  the schema's `EvidenceChallengeTag` enum only formally define the original
-  three values. The tier system and every phenomenon tag beyond those three
-  exist only as informal strings, and were undocumented anywhere before this
-  file.
+- **`metadata.creation_process`:** `"llm_generated"`, vs. the original 55
+  rows' `"manual"`.
+- **`evidence_challenge`:** set only for the schema's three defined values.
+  Every other phenomenon lives in the free-text `tags` field, same as the
+  original 55 rows.
 
 ## Caveats
 
