@@ -89,8 +89,8 @@ and how many of the 545 new rows (`ex_0146`–`ex_0690`) were built around it.
 Every count is exact, pulled directly from `data/data_v2.jsonl`. None are
 estimates.
 
-Per-phenomenon counts overlap (see [Caveats](#caveats)), so don't add up the
-"New rows" column expecting 545.
+Per-phenomenon counts overlap, so don't add up the "New rows" column expecting
+545.
 
 The rows below name the single- and double-mechanism constructions that were
 common or notable enough to track individually. About a dozen pilot rows stack
@@ -119,21 +119,16 @@ in this table. This document does not report their individual hit rate.
 | `conditional_logic` | 0% (0/2) | 0 | Not scaled up. |
 | New pattern, no pilot precedent: `distractor_entity` where the real value for the asked-about entity is stated directly, alongside a similarly-named unrelated entity's different value | n/a | 107 (`answerable`) | Tests whether the model misattributes the value, without necessarily forcing a refusal. |
 
-Two things stand out from this table.
-
-First, reading difficulty and model difficulty pulled apart completely. Burying
-a false fact in a longer paragraph, or requiring multi-hop arithmetic on top of
-a false premise, made `known_world_conflict` rows *easier* for the model: 0
-failures out of 9 combined pilot rows. A flat, undisguised false statement about
-a very famous fact tripped it up 33% of the time instead. The same pattern held
-for `distractor_entity`: the subtle, single-mechanism version was never wrong
-(0/2), but stacking it with `partial_evidence` broke the model outright (1/1).
-
-Second, a large share of the 545 new rows are combined, stacked variants:
-distractor+partial+arithmetic, conflicting+partial, coreference+partial,
-distractor+coreference, hedged+distractor, and hedged+coreference. They aren't
-broken out as their own row in the table above because they don't map to a
-single phenomenon. They're also where most of the 80 `partial` rows come from.
+- **Reading difficulty and model difficulty pulled apart.** Burying a false
+  fact in a longer paragraph or stacking multi-hop arithmetic on top of it made
+  `known_world_conflict` *easier* (0/9 combined pilot rows failed); a flat,
+  undisguised false statement tripped the model up 33% of the time instead.
+  Same pattern for `distractor_entity`: subtle alone was never wrong (0/2),
+  stacked with `partial_evidence` it broke the model outright (1/1).
+- **Most of the 545 new rows stack multiple mechanisms together**, rather
+  than testing one at a time. Not broken out as their own table row above
+  since they don't map to a single phenomenon — they're also where most of
+  the 80 `partial` rows come from.
 
 ## Final composition (600 rows)
 
@@ -154,14 +149,14 @@ The most common tags across all 600 rows:
 These are occurrence counts. A row can carry several tags at once, so this
 column doesn't sum to 600 either, for the same reason given above.
 
-`answerability` was deliberately rebalanced back toward 260/260/80. The four
-highest-yield mechanisms (coreference, hedged, conflicting, distractor+partial)
-are naturally `unanswerable`- or `partial`-heavy in their correct behavior.
-Without the `known_world_conflict`-plain batch and the distractor-with-real-value
-batch, the set would have skewed toward roughly 80% "correct answer is refuse."
-That would bias any training or eval built on this data toward testing
-abstention only, not the full answer/refuse/partial boundary this project's
-central research question is actually about.
+This 260/260/80 split was a deliberate correction. Coreference ambiguity,
+hedged uncertainty, conflicting evidence, and distractor+partial stacks all
+correctly resolve to `unanswerable` or `partial` — built on those alone, the
+set would skew toward ~80% "correct answer is refuse," which a model could
+score well on just by refusing everything. The `known_world_conflict` batch
+(144 rows) and the new distractor-with-real-value pattern (107 rows) are both
+correctly `answerable`, and were added specifically to bring the split back to
+260/260/80.
 
 ## Conventions used for the new rows
 
@@ -176,19 +171,34 @@ central research question is actually about.
   Every other phenomenon lives in the free-text `tags` field, same as the
   original 55 rows.
 
+## Verification: full 600-row eval
+
+Ran gpt-5-mini across all 600 rows
+(`outputs/eval-qwen2.5-3b-instruct/base_v2_full_eval_judge-gpt5-mini.jsonl`):
+
+| Metric | 600 rows | 55-row pilot |
+|---|---:|---:|
+| `abstention_recall` | 0.650 | 0.684 |
+| `abstention_precision` | 0.955 | 0.929 |
+| `over_refusal_rate` | 0.031 | 0.033 |
+| `hallucination_rate` | 0.269 | 0.268 |
+| `partial_match_rate` | 0.513 | 0.667 |
+| `partial_under_deliver_rate` | 0.038 | 0.0 |
+| `partial_over_deliver_rate` | 0.450 | 0.333 |
+
+- `answerable`/`unanswerable` difficulty held: `hallucination_rate` and
+  `over_refusal_rate` are nearly identical to the pilot.
+- `partial` rows got harder: `partial_match_rate` drops to 0.513 at n=80
+  (pilot's n=6 didn't show this). Dominant failure is over-delivery — the
+  model answers the unsupported half by misattributing a fact to the wrong
+  entity (`ex_0121`: evidence names Elena Voss as leading Chicago; asked who
+  leads Denver, the model answers "Elena Voss").
+
 ## Caveats
 
-- **Counts overlap.** A row can carry more than one phenomenon tag (e.g. one
-  combining coreference ambiguity + hedging counts toward both), so the
-  "New rows" column above doesn't sum to 545.
 - **Allocation gap.** `negation_exception` and `embedded_instruction` had
   non-zero pilot hit rates (50%, 33%) but got zero new rows, unlike other
   non-zero-hit-rate phenomena. Unexplained, not fixed here.
-- **Unverified at scale.** Only `ex_0146`–`ex_0217` (72 rows) were built
-  directly from the hit-rate table above; the remaining 473 extrapolate the
-  same mechanisms to new domains/entities but were never re-run against the
-  base model. Run `eval/run_eval.py` on the full set before trusting these
-  hit rates for training or headline numbers.
 
 ## How to run
 
