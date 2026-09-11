@@ -9,21 +9,22 @@ claims at face value (Week 4). Separately, `data_v2_pilot`, the only dataset har
 real model weaknesses, had just 55 rows, too few to support the modeling work planned ahead.
 
 This week resolved both. A blind, evidence-adjudicated comparison across three model outputs and 30
-disagreement cases found gpt-5-mini correct in every case; it is now `judge.py`'s default judge.
+disagreement cases found gpt-5-mini correct in every case. It is now `judge.py`'s default judge.
 `data_v2_pilot` was extended to `data_v2.jsonl` (600 rows) by measuring, not guessing, which specific
 constructions broke the model, then verified at full scale to confirm the extension held that
 difficulty.
 
 With a validated judge in hand, the base-vs-SFT comparison Week 4 flagged as unreliable was rerun.
 The result changes materially: SFT's recall regression is roughly twice what Week 4 reported, and
-its hallucination direction reverses. Neither number is a verdict on whether training helps; both
-are still confounded by a train/eval mismatch inherited from Week 4 (Limitations, below).
+its hallucination direction reverses. Neither number says whether training helps. SFT was trained on
+easy data and tested on hard data, so a drop could mean training hurt the model, or just that it
+never saw this kind of hard question during training (Limitations, below).
 
 ## Development
 
 | Item | Path | Notes |
 |------|------|-------|
-| gpt-4o vs. gpt-5-mini investigation | [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) | 30 disagreements adjudicated by hand against evidence text; verdict: switch |
+| gpt-4o vs. gpt-5-mini investigation | [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) | 30 disagreements adjudicated by hand against evidence text. Verdict: switch |
 | Default judge | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | `DEFAULT_JUDGE_MODEL` changed to `gpt-5-mini` |
 | `data_v2` extension | [`data/data_v2.jsonl`](../../data/data_v2.jsonl), [`docs/DATA_V2_EXTENSION.md`](../DATA_V2_EXTENSION.md) | 55 → 600 rows, judge-log-driven allocation |
 
@@ -32,24 +33,28 @@ are still confounded by a train/eval mismatch inherited from Week 4 (Limitations
 gpt-4o failed two independent calibration checks before this week, and they are failures of the same
 kind: gpt-4o judges surface plausibility, not verified ground truth. In Week 3, manual review found
 its few-shot prompt had no case for a model that faithfully restates evidence conflicting with
-real-world fact, so it penalized correct behavior. In Week 4, manual review found it accepting a
-response's unverified "the evidence doesn't specify X" claims without checking them, inflating
-apparent faithfulness.
+real-world fact. For example, evidence stating "New Amsterdam...was later renamed Boston": a response
+correctly restating that is faithful to the evidence, even though it's false in reality, but gpt-4o
+penalized it as unfaithful. In Week 4, manual review found gpt-4o accepting a response's unverified
+"the evidence doesn't specify X" claims without checking them (`ex_0099`, quoted in full below, is
+exactly this pattern).
 
 gpt-5-mini was the candidate fix, for two independent reasons. It costs roughly 10x less on input and
 5x less on output than gpt-4o. More consequentially, it is a reasoning model:
 ["Thinking Small Models are Efficient LLM Judges"](https://arxiv.org/html/2509.13332v1) reports that
 enabling reasoning is a far more efficient accuracy lever than adding few-shot examples (about 10%
 accuracy gain for 1.5-2x compute, versus about 4.5% for 8x compute from more few-shot examples).
-`judge.py`'s prompt relies entirely on few-shot examples. A model that reasons through a claim rather
-than pattern-matching a response's tone was worth testing directly against gpt-4o's two documented
-failure modes, not assumed to fix them.
+`judge.py`'s prompt relies entirely on few-shot examples. gpt-4o's two failures both come from
+accepting a claim without checking it against the evidence. A model that reasons through the claim,
+instead of just judging whether a response sounds confident, should catch exactly this kind of error.
+But that needed to be tested directly, not assumed to be true just because the paper says reasoning
+helps in general.
 
 **Method.** Three model outputs, the base model on `data_v2_pilot`, the SFT checkpoint on
 `data_v2_pilot`, and the base model on `data_v1_pilot`, were each scored by both gpt-4o and
 gpt-5-mini (gpt-4o-mini was also scored on the first set as an additional reference point, not
 included in the disagreement count below). Every row where the two judges disagreed was adjudicated
-by reading the evidence text directly; neither judge's stated rationale was trusted at face value.
+by reading the evidence text directly. Neither judge's stated rationale was trusted at face value.
 
 | Output tested | Data | Rows | Disagreements | gpt-5-mini right | gpt-4o right |
 |----------------|------|-----:|---------------:|------------------:|--------------:|
@@ -107,7 +112,7 @@ sets).
 - Response: "...The evidence provided does not contain information about... the current funds he
   oversees... Therefore... I do not know what fund James Whitfield currently oversees."
 - The response itself states the fund detail, then claims one sentence later that it isn't there.
-  gpt-4o called this a faithful refusal; gpt-5-mini caught the self-contradiction.
+  gpt-4o called this a faithful refusal. gpt-5-mini caught the self-contradiction.
 
 **`ex_0049`**: misapplying `partial`.
 
@@ -117,10 +122,10 @@ sets).
   ceremony took place in Vancouver."
 - Response: "Dr. Lin was the recipient of the Halley Prize in 2021 as stated in the evidence. The
   evidence does not provide information about the location of the award ceremony."
-- The question asks one thing; the response answers it correctly, then adds a false aside (the
-  evidence does state the location, Vancouver). gpt-4o called this `partial` and faithful; gpt-5-mini
-  called it `answer`, unfaithful: there's no real second part to decline, and the aside itself is
-  wrong.
+- The question asks one thing. The response answers it correctly, then adds a false aside (the
+  evidence does state the location, Vancouver). gpt-4o called this `partial` and faithful.
+  gpt-5-mini called it `answer`, unfaithful: there's no real second part to decline, and the aside
+  itself is wrong.
 
 `judge.py`'s default judge is now gpt-5-mini.
 
@@ -165,11 +170,8 @@ Both re-judged with gpt-5-mini:
 | SFT | 0.579 | 0.917 | 0.033 | 0.163 | 0.833 |
 
 Training moved every metric, but not uniformly: `abstention_recall` and `hallucination_rate` both
-fall by about 0.105, while `partial_match_rate` rises by 0.167. Week 4's gpt-4o-judged numbers showed
-a smaller recall drop (0.053) and, more consequentially, the opposite hallucination direction, an
-increase rather than a decrease, because gpt-4o's calibration failure systematically penalized SFT's
-literal-restatement style more than base's. These corrected numbers, not Week 4's, are what any
-future comparison against this checkpoint should cite.
+fall by about 0.105, while `partial_match_rate` rises by 0.167. These are the numbers to cite for
+this checkpoint going forward.
 
 ## Limitations and next steps
 
@@ -179,4 +181,4 @@ future comparison against this checkpoint should cite.
   determined from this data.
 - **Not done this week:** DPO (not yet scoped), and retraining SFT on `data_v2` with a proper
   train/held-out split. The latter is what would resolve the confound above and produce a baseline
-  worth citing going forward; it's the natural next step.
+  worth citing going forward. It's the natural next step.
