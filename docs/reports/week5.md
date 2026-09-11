@@ -2,34 +2,37 @@
 
 ## Summary
 
-gpt-4o, the judge used for every number in Week 3 and Week 4, was found to have systematic
-calibration issues. gpt-5-mini replaced it as `judge.py`'s default judge, validated by hand against
-30 disagreement cases across three different model outputs. Every existing base/SFT comparison was
-re-judged under the corrected judge, and one of Week 4's headline findings reversed direction.
-`data_v2_pilot` (55 rows) was also extended to `data_v2.jsonl` (600 rows) using an empirical,
-judge-log-driven method, then verified at full scale to confirm the extension held pilot-level
-difficulty.
+gpt-4o's calibration issues surfaced through manual review across several previous weeks, not this
+week. gpt-5-mini looked like the better judge, so this week ran an apples-to-apples comparison
+between the two and validated the switch.
+
+`data_v2` meets our quality bar but not the quantity needed for the modeling work ahead. This week
+expanded it, using the model's measured failure points to know how.
 
 ## Development
 
 | Item | Path | Notes |
 |------|------|-------|
-| Judge comparison and verdict | [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) | gpt-4o vs. gpt-5-mini, 30 disagreements adjudicated by hand against evidence text |
-| Default judge switch | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | `DEFAULT_JUDGE_MODEL` is now `gpt-5-mini` |
+| gpt-4o vs. gpt-5-mini investigation | [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) | 30 disagreements adjudicated by hand against evidence text; verdict: switch |
+| Default judge | [`src/grounded_refusal/eval/judge.py`](../../src/grounded_refusal/eval/judge.py) | `DEFAULT_JUDGE_MODEL` changed to `gpt-5-mini` |
 | `data_v2` extension | [`data/data_v2.jsonl`](../../data/data_v2.jsonl), [`docs/DATA_V2_EXTENSION.md`](../DATA_V2_EXTENSION.md) | 55 → 600 rows, judge-log-driven allocation |
-| Re-judged outputs | `outputs/eval-.../*_judge-gpt5-mini.jsonl` | `base_v1_pilot`, SFT's `data_v2_pilot` output, `base_v2_full` |
 
 ## Judge validation
 
-gpt-5-mini costs about 10x less on input and 5x less on output than gpt-4o, and is a reasoning
-model; ["Thinking Small Models are Efficient LLM Judges"](https://arxiv.org/html/2509.13332v1) found
-that turning on reasoning improves judge accuracy more, and more cheaply, than adding few-shot
-examples. `judge.py`'s prompt relies on few-shot examples rather than reasoning, so this was worth
-testing directly rather than assuming.
+Manual review in Week 3 and Week 4 had already found gpt-4o accepting a response's unchecked claims
+at face value without verifying them against the evidence, a failure that requires tracing a
+specific claim back to specific text, not pattern-matching a response's tone. gpt-5-mini is a
+reasoning model; ["Thinking Small Models are Efficient LLM Judges"](https://arxiv.org/html/2509.13332v1)
+found that enabling reasoning improves judge accuracy more than adding few-shot examples does, for
+less compute. `judge.py`'s prompt relies entirely on few-shot examples, not reasoning, so this was a
+specific, plausible fix worth testing directly. (It's also roughly 10x cheaper on input and 5x on
+output.)
 
-Method: for three separate model outputs, gpt-4o, gpt-4o-mini, and gpt-5-mini each judged the same
-rows. Every row where the judges disagreed was adjudicated by reading the evidence text directly,
-never by trusting either judge's stated rationale.
+Method: three model outputs, the base model on `data_v2_pilot`, the SFT checkpoint on
+`data_v2_pilot`, and the base model on `data_v1_pilot`, were each judged by both gpt-4o and
+gpt-5-mini (gpt-4o-mini was also tested on the first set as an additional check, not included in the
+disagreement analysis below). Every row where gpt-4o and gpt-5-mini disagreed was adjudicated by
+reading the evidence text directly, never by trusting either judge's stated rationale.
 
 | Output tested | Data | Rows | Disagreements | gpt-5-mini right | gpt-4o right |
 |----------------|------|-----:|---------------:|------------------:|--------------:|
@@ -38,20 +41,24 @@ never by trusting either judge's stated rationale.
 | Base model | `data_v1_pilot` | 50 | 5 | 5 | 0 |
 | **Total** | | | **30** | **30** | **0** |
 
-Two error patterns account for most of gpt-4o's misses:
+Two recurring error patterns:
 
 **`ex_0099`**: accepting an unchecked claim.
 
+- Question: "What fund does James Whitfield, the risk officer at Cornerstone Capital who joined in
+  2011, currently oversee?" (a different bio than the evidence describes below, a separate mismatch,
+  not the point here)
 - Evidence: "James Whitfield joined Cornerstone Capital in 2015 as a junior analyst and was promoted
   to senior portfolio manager in 2019, overseeing a $2 billion fund focused on renewable energy
   investments."
 - Response: "...The evidence provided does not contain information about... the current funds he
   oversees... Therefore... I do not know what fund James Whitfield currently oversees."
-- The response states the fund detail itself, then claims one sentence later that it isn't there.
+- The response itself states the fund detail, then claims one sentence later that it isn't there.
   gpt-4o called this a faithful refusal; gpt-5-mini caught the self-contradiction.
 
 **`ex_0097`**: overriding evidence with real-world knowledge.
 
+- Question: "What was Boston previously called?"
 - Evidence: "New Amsterdam, the Dutch colonial settlement that was later renamed Boston, served as a
   key trading post in the 17th century."
 - Response: "...Boston was previously called New Amsterdam."
@@ -62,8 +69,8 @@ Two error patterns account for most of gpt-4o's misses:
   are meant to cover; gpt-4o overrode the evidence with its own knowledge anyway. This pattern
   wasn't in `JUDGE_MODEL.md`'s original analysis; it surfaced only when re-judging SFT's output.
 
-As a check that the verdict generalizes beyond `data_v2_pilot`, `base_v1_pilot` (the easier, Week 2
-pilot set) was also re-judged with both judges:
+To check whether this verdict holds outside `data_v2_pilot`, `base_v1_pilot` (Week 2's easier pilot
+set, 50 rows) was also judged with both models:
 
 | Metric | gpt-4o | gpt-5-mini |
 |--------|-------:|-----------:|
@@ -73,8 +80,11 @@ pilot set) was also re-judged with both judges:
 | `hallucination_rate` | 0.0645 | 0.09375 |
 | `partial_match_rate` | 1.00 | 0.90 |
 
-This file wasn't row-verified the way the 30 cases above were, but the direction matches: gpt-5-mini
-catches more hallucination than gpt-4o does. `judge.py`'s default judge is now gpt-5-mini.
+`hallucination_rate` comes out higher under gpt-5-mini (0.094 vs. 0.065), the same direction as every
+disagreement documented above: gpt-4o misses hallucination that gpt-5-mini catches. This comparison
+wasn't adjudicated row-by-row the way the 30 cases above were, so it's a consistency check, not
+independent proof, but combined with that row-verified result, it's why `judge.py`'s default judge
+is now gpt-5-mini.
 
 ## data_v2 extension: 55 → 600
 
