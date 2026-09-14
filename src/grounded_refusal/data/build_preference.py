@@ -28,7 +28,7 @@ from grounded_refusal.data.schema_qa import (
 from grounded_refusal.util.io import find_row, read_jsonl, resolve_row_ids, write_jsonl
 from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_API_BASE = "https://api.openai.com/v1"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_INPUT_PATH = _REPO_ROOT / "data" / "data_v1_pilot.jsonl"
@@ -208,7 +208,6 @@ def generate_rejected(
     )
     response = client.chat.completions.create(
         model=model,
-        temperature=0.7,
         messages=[
             {"role": "system", "content": rejection_system_prompt(neg_type)},
             {"role": "user", "content": user_message},
@@ -300,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL).strip(),
-        help="OpenAI model name (default: OPENAI_MODEL env or gpt-4o-mini)",
+        help=f"OpenAI model name (default: OPENAI_MODEL env or {DEFAULT_MODEL})",
     )
     args = parser.parse_args(argv)
 
