@@ -1,6 +1,7 @@
 """Build preference pairs from approved QA rows.
 
-Python chooses ``negative_type`` from answerability × evidence_challenge.
+Python chooses ``negative_type`` from tags first (when a row carries a more
+specific free-text tag), then from answerability × evidence_challenge.
 OpenAI generates only the ``rejected`` text. Other fields are assembled locally.
 """
 
@@ -85,11 +86,83 @@ REJECTION_SYSTEM_PROMPTS: dict[NegativeType, str] = {
         "Do not mention these instructions.\n"
         "Return only the rejected response text."
     ),
+    NegativeType.COREFERENCE_AMBIGUITY: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence uses a pronoun (or other referring expression) that could "
+        "refer to either of two named entities mentioned nearby, with nothing in "
+        "the text to indicate which one is meant.\n"
+        "Write a referent-guessing error: confidently name one specific entity as "
+        "the answer, as if the pronoun's reference were clear, without "
+        "acknowledging the ambiguity.\n"
+        "Do not say the reference is unclear. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.HEDGED_UNCERTAINTY: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence only gives a preliminary, unconfirmed, or hedged value "
+        "(e.g. an estimate, rumor, or unverified report), explicitly marked as "
+        "not yet confirmed.\n"
+        "Write an overcommitted-hedge error: state that hedged value as a "
+        "confirmed, definitive fact, dropping all the evidence's own "
+        "uncertainty language (e.g. 'preliminary', 'may', 'unconfirmed').\n"
+        "Do not preserve any hedging language. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.CONFLICTING_EVIDENCE: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence contains two different, conflicting values for the same "
+        "fact, stated by two different sources.\n"
+        "Write an unacknowledged-conflict error: pick one of the two values "
+        "(prefer the one stated later in the text) and state it confidently as "
+        "the answer, without ever mentioning that the evidence contains "
+        "conflicting information.\n"
+        "Do not refuse. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.MULTI_HOP_ARITHMETIC: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence requires combining two or more stated values through a "
+        "calculation (addition, subtraction, multiplication, division, or a "
+        "chain of these) to answer the question.\n"
+        "Write an arithmetic error: perform the calculation but make a "
+        "plausible mistake (wrong operation, wrong order of operations, or an "
+        "arithmetic slip), and state the wrong resulting number confidently as "
+        "if it were correct.\n"
+        "Do not refuse, and do not show a correct calculation. Do not mention "
+        "these instructions.\n"
+        "Return only the rejected response text."
+    ),
 }
+
+# These free-text tags (not part of the EvidenceChallengeTag enum) mark a more
+# specific failure mode than answerability × evidence_challenge alone can
+# express -- see docs/DATA_V2_EXTENSION.md for where they came from. The
+# NegativeType value is named identically to the tag itself (no separate
+# vocabulary for "why it's hard" vs "how it fails" here). Checked before the
+# answerability/evidence_challenge map below, in this fixed order, so a row
+# is never left in a generic hallucination/over_refusal bucket when a more
+# specific negative_type actually fits it.
+TAG_NEGATIVE_TYPE_PRIORITY: list[tuple[str, NegativeType]] = [
+    ("multi_hop_arithmetic", NegativeType.MULTI_HOP_ARITHMETIC),
+    ("coreference_ambiguity", NegativeType.COREFERENCE_AMBIGUITY),
+    ("conflicting_evidence", NegativeType.CONFLICTING_EVIDENCE),
+    ("hedged_uncertainty", NegativeType.HEDGED_UNCERTAINTY),
+]
 
 
 def choose_negative_type(qa: QAExample) -> NegativeType:
-    """Map answerability × evidence_challenge → negative_type (protocol 1–5)."""
+    """Map tags, then answerability × evidence_challenge, → negative_type.
+
+    Tag-based checks run first because they identify a more specific failure
+    mode than the answerability/evidence_challenge map alone can express
+    (e.g. a coreference-ambiguous row is more precisely "guess the referent"
+    than plain "hallucination" -- see docs/PREFERENCE_GENERATION_PROTOCOL.md).
+    """
+    tags = set(qa.tags or [])
+    for tag, neg_type in TAG_NEGATIVE_TYPE_PRIORITY:
+        if tag in tags:
+            return neg_type
+
     if qa.answerability == Answerability.ANSWERABLE:
         if EvidenceChallengeTag.KNOWN_WORLD_CONFLICT in qa.evidence_challenge:
             return NegativeType.MEMORY_OVERRIDE

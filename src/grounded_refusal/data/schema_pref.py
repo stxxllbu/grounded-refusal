@@ -14,6 +14,10 @@ class NegativeType(str, Enum):
     OVER_COMPLETE = "over_complete"
     DISTRACTOR_CONFUSION = "distractor_confusion"
     MEMORY_OVERRIDE = "memory_override"
+    COREFERENCE_AMBIGUITY = "coreference_ambiguity"
+    HEDGED_UNCERTAINTY = "hedged_uncertainty"
+    CONFLICTING_EVIDENCE = "conflicting_evidence"
+    MULTI_HOP_ARITHMETIC = "multi_hop_arithmetic"
 
 
 class PreferenceMetadata(BaseModel):
