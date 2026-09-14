@@ -41,7 +41,9 @@ source QA row, then assigns `negative_type` to describe how `rejected` fails:
 | `metadata` | no | e.g. `creation_process`, `notes`. |
 
 Allowed values for `negative_type` are:
-`hallucination` | `over_refusal` | `over_complete` | `distractor_confusion` | `memory_override`.
+`hallucination` | `over_refusal` | `over_complete` | `distractor_confusion` | `memory_override` |
+`coreference_ambiguity` | `hedged_uncertainty` | `conflicting_evidence` | `multi_hop_arithmetic`
+(the last 4 added for the `data_v2` tag extension — see below).
 
 ---
 
@@ -113,6 +115,46 @@ Notes:
 - `known_world_conflict` is **answerable**, not unanswerable.
 - Do not use one generic hallucination for all unanswerable rows. Plain unanswerable and distractor cases require different `rejected` content.
 - Pilot `partial`: **`over_complete` only**.
+
+#### data_v2 tag extension
+
+The pilot map above was built for `data_v1_pilot.jsonl`'s 3 `evidence_challenge`
+enum values. `data_v2` introduced more specific failure modes as free-text
+`tags` (not part of the `EvidenceChallengeTag` enum — see
+[`DATA_V2_EXTENSION.md`](DATA_V2_EXTENSION.md)). Four of these tags appear in
+`data_v2_train.jsonl` and are checked **before** the pilot map, so a row
+carrying one of them gets a `negative_type` that targets its actual failure
+mode instead of falling into a generic `hallucination`/`over_refusal` bucket:
+
+| `tags` contains | Correct (`chosen`) | Bad (`rejected`) | `negative_type` |
+|---|---|---|---|
+| `multi_hop_arithmetic` | Correct computed value | Confident wrong arithmetic | `multi_hop_arithmetic` |
+| `coreference_ambiguity` | Decline — referent is ambiguous | Confidently name one entity as the referent | `coreference_ambiguity` |
+| `conflicting_evidence` | Decline — sources conflict | Pick one source's value, don't mention the conflict | `conflicting_evidence` |
+| `hedged_uncertainty` | Decline — only a hedged estimate exists | State the hedged value as confirmed fact | `hedged_uncertainty` |
+
+Decision order (same as code, `choose_negative_type` in
+[`build_preference.py`](../src/grounded_refusal/data/build_preference.py)):
+
+1. `multi_hop_arithmetic` in `tags` → `multi_hop_arithmetic`
+2. Else `coreference_ambiguity` in `tags` → `coreference_ambiguity`
+3. Else `conflicting_evidence` in `tags` → `conflicting_evidence`
+4. Else `hedged_uncertainty` in `tags` → `hedged_uncertainty`
+5. Else fall through to the pilot map above (answerability × evidence_challenge)
+
+Why tags are checked first, not folded into the answerability/evidence_challenge
+map: these 4 tags mostly co-occur with `unanswerable` + `evidence_challenge: []`
+(the exact combination the pilot map already routes to plain `hallucination`).
+Checking tags first intercepts them before they reach that generic bucket.
+
+Why these 4 and not the others in `DATA_V2_EXTENSION.md` (`negation_exception`,
+`embedded_instruction`, `false_presupposition`, `circular_evidence`,
+`digit_confusion`, `conditional_logic`, `near_miss`, `red_herring`): those
+tags only exist on the 55 pilot rows, which are pinned entirely to
+`data_v2_heldout.jsonl` (see `split_train_heldout.py`) and never appear in
+`data_v2_train.jsonl` — so `build_preference.py` run on the training split
+never encounters them. Extending the map to cover them too is future work,
+needed only once/if those rows are trained on.
 
 #### Examples
 
