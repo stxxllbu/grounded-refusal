@@ -1,0 +1,33 @@
+# LoRA DPO config. train_dpo.py merges the given SFT LoRA checkpoint into the
+# base model first (load_merged_sft_model), then trains a fresh LoRA adapter
+# on top of that merged model. DPOTrainer is given this fresh adapter's
+# peft_config and no ref_model, so it uses the merged model with the new
+# adapter disabled as the frozen reference (trl's built-in reference-free
+# LoRA DPO, confirmed against https://huggingface.co/docs/trl/dpo_trainer)
+# -- no second full model copy is loaded.
+#
+# Batch size is smaller and grad_accum larger than configs/train/lora.yaml's
+# SFT settings: DPO forwards/backwards both chosen and rejected per step, so
+# per-step activation memory is roughly double SFT's at the same batch size.
+# See docs/GPU_MEMORY_ESTIMATE.md for the SFT budget this scales down from.
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["q_proj", "v_proj"]
+  task_type: CAUSAL_LM
+
+training:
+  output_dir: checkpoints/dpo  # train_dpo.py prefixes a run timestamp onto this
+  beta: 0.1                    # trl default; not yet tuned for this data/model
+  loss_type: sigmoid           # the original DPO formulation; ipo/other variants are future ablation work
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16  # effective batch size 16, matching lora.yaml's SFT run
+  gradient_checkpointing: true
+  learning_rate: 5.0e-6            # DPO typically wants a lower LR than SFT's 2e-4
+  logging_steps: 2
+  save_strategy: "no"
+  bf16: true
+  max_length: 512
+  seed: 42
