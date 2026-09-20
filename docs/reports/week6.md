@@ -2,16 +2,21 @@
 
 ## Summary
 
-Four things got done this week: `data_v2` was split into stratified train and held-out sets,
-SFT was retrained on the new training split, preference-pair generation was extended to target
-`data_v2`'s specific failure modes, and the DPO training script itself was written.
+SFT was retrained on distribution-matched data, and the DPO training pipeline is now complete.
+Both close gaps that would otherwise have compromised the Week 7 comparison.
 
-The split and retrain close out what Week 5 named as the next required step: SFT's only
-checkpoint had been trained on easy data (`data_v1_pilot`) and evaluated on hard data
-(`data_v2`), confounding every comparison since Week 4. The preference-data and training-script
-work catches up DPO itself, which the project's original eight-week plan placed at Week 5 and
-which was deferred twice while judge validation and the `data_v2` extension took priority. With
-both pieces in place, Week 7 can run a DPO comparison unconfounded by either problem.
+SFT's only prior checkpoint was trained on `data_v1_pilot` (50 hand-built, comparatively easy
+rows from Week 2) and evaluated on `data_v2` (600 rows, extended in Week 5 from a 55-row
+hand-built adversarial set specifically to expose failures the easy set could not). Every SFT
+result reported since Week 4 inherited that mismatch. DPO itself, originally scheduled for Week
+5, was pushed back while that week's judge recalibration and `data_v2` extension took priority,
+both necessary before a DPO comparison could be trusted.
+
+This week retrained SFT on `data_v2_train`, a stratified 480-row split of `data_v2` reserved for
+training; held out the remaining 120 rows for evaluation; extended preference-pair generation to
+cover `data_v2`'s harder failure modes; and wrote the DPO training script. Week 7 can now run
+base, SFT, and DPO on the same held-out split and report a comparison free of both the training
+data mismatch and an unbuilt DPO pipeline.
 
 ## Development
 
@@ -27,16 +32,16 @@ both pieces in place, Week 7 can run a DPO comparison unconfounded by either pro
 
 ## Splitting data_v2 for a matched SFT retrain
 
-Fixing the Week 4/5 confound requires training and evaluation data of matching difficulty.
-`split_train_heldout.py` produces that split from the full 600-row `data_v2.jsonl`:
+`split_train_heldout.py` splits the full 600-row `data_v2.jsonl` into a training set and a held-out
+evaluation set of matching difficulty.
 
-The 55 `data_v2_pilot` rows are pinned entirely to held-out. They have already been read and
-judged repeatedly for judge validation ([`JUDGE_MODEL.md`](../JUDGE_MODEL.md)); training on them
-would let the model see rows this project has already used to characterize its own failures. The
-remaining 545 rows are grouped into seven strata by `(answerability, evidence_challenge)`,
-ranging from 11 to 193 rows each. Each stratum is shuffled with a fixed seed (42, matching
-`configs/train/lora.yaml`) and sampled by a largest-remainder apportionment to bring the overall
-split to 80/20.
+The 55 `data_v2_pilot` rows, the original hand-built adversarial set later extended into
+`data_v2`, are pinned entirely to held-out: they have been read and judged repeatedly during
+judge validation ([`JUDGE_MODEL.md`](../JUDGE_MODEL.md)), and training on them would let the
+model see rows this project has already used to characterize its own failure modes. The
+remaining 545 rows form seven strata by `(answerability, evidence_challenge)`, 11 to 193 rows
+each, shuffled with a fixed seed (42, matching `configs/train/lora.yaml`) and apportioned by
+largest remainder to bring the overall split to 80/20.
 
 | Split | Rows | answerable | unanswerable | partial |
 |-------|-----:|-----------:|--------------:|--------:|
@@ -44,34 +49,34 @@ split to 80/20.
 | `data_v2_heldout.jsonl` | 120 | 58 | 48 | 14 |
 | Full `data_v2.jsonl` | 600 | 260 | 260 | 80 |
 
-Held-out's `answerable` share (48%) runs above the full set's (43%) because the pilot, which is
-54% `answerable`, sits entirely inside it. Metrics computed on `data_v2_heldout.jsonl` alone
-should account for that skew rather than treat it as representative of `data_v2`'s overall
-composition.
+Held-out's `answerable` share (48%) exceeds the full set's (43%) because the 54%-`answerable`
+pilot sits entirely inside it. Metrics computed on `data_v2_heldout` alone should be read with
+that skew in mind, not treated as representative of `data_v2`'s overall composition.
 
 ## Retraining SFT on data_v2_train
 
-The existing SFT pipeline ([`train_sft.py`](../../src/grounded_refusal/train/train_sft.py),
+The Week 4 SFT pipeline ([`train_sft.py`](../../src/grounded_refusal/train/train_sft.py),
 `configs/train/lora.yaml`) was rerun with `--data data/data_v2_train.jsonl` in place of
-`data/data_v1_pilot.jsonl`. Training and evaluation now draw from the same distribution for the
-first time: `data_v2_train.jsonl` and `data_v2_heldout.jsonl` are a stratified split of one
-600-row set, not two datasets built at different times for different purposes. Checkpoint
-weights are not committed to git, consistent with [`checkpoints/README.md`](../../checkpoints/README.md);
-a row documenting this run's `run_metadata.json` belongs in that file's table.
+`data/data_v1_pilot.jsonl`. Training and evaluation now draw from one stratified split of the
+same 600-row set, rather than two datasets built at different times for different purposes,
+removing the mismatch described above. Checkpoint weights are not committed to git, consistent
+with [`checkpoints/README.md`](../../checkpoints/README.md); this run's `run_metadata.json`
+should be added to that file's table.
 
 ## Extending preference generation for data_v2's failure modes
 
-`build_preference.py`'s `choose_negative_type` mapped only `answerability` × the three
+`build_preference.py`'s `choose_negative_type` mapped only `answerability` and the three
 `EvidenceChallengeTag` enum values (`distractor_entity`, `known_world_conflict`,
-`partial_evidence`). `data_v2`'s extension introduced harder failure modes as free-text `tags`
-(`coreference_ambiguity`, `hedged_uncertainty`, `conflicting_evidence`, `multi_hop_arithmetic`)
-that map could not see, so every row carrying one fell into a generic `hallucination` or
-`over_refusal` bucket regardless of which specific mechanism it tested.
+`partial_evidence`), the taxonomy built for `data_v1_pilot`. `data_v2`'s extension introduced
+harder failure modes as free-text `tags` (`coreference_ambiguity`, `hedged_uncertainty`,
+`conflicting_evidence`, `multi_hop_arithmetic`) that map could not see, so every row carrying one
+fell into a generic `hallucination` or `over_refusal` bucket regardless of which specific
+mechanism it tested.
 
 `choose_negative_type` now checks these four tags first, in priority order, before falling
 through to the original map, each routing to its own new `negative_type` with a matching
-`rejected`-writing instruction. `conflicting_evidence`'s instruction, for instance, has the
-model pick the later-stated of two conflicting values, reproducing the recency bias
+`rejected`-writing instruction. `conflicting_evidence`'s instruction, for instance, has the model
+pick the later-stated of two conflicting values, reproducing the recency bias
 [`DATA_V2_EXTENSION.md`](../DATA_V2_EXTENSION.md) measured in the base model's actual failures,
 rather than an arbitrary wrong answer.
 
@@ -81,15 +86,15 @@ classified by whichever comes first. 20 of the 93 rows tagged `hedged_uncertaint
 20 are classified under the other tag instead; `hedged_uncertainty` accounts for 73 of the 480
 generated pairs rather than 93.
 
-The generation model changed from `gpt-4o-mini` to `gpt-5-mini`, reasoning about a specific
-failure mode being harder to get right consistently than plain text completion. Partial rows
-carrying one of the four new tags (52 of 545, split across `multi_hop_arithmetic`,
-`coreference_ambiguity`, and `conflicting_evidence`) need the generated `rejected` to introduce
-exactly one error while leaving the row's independently-supported half untouched; none of the
-four new instructions state that requirement explicitly. In the three sampled rows combining a
-partial answerability with one of these tags (`ex_0513`, `ex_0502`, `ex_0485`), `gpt-5-mini`
-preserved the untouched half correctly each time without being told to; the remaining 49 rows in
-that combination have not been checked individually.
+The generation model changed from `gpt-4o-mini` to `gpt-5-mini`, on the reasoning that hitting a
+specific target failure mode reliably is a harder instruction-following task than plain text
+completion. Partial-answerability rows carrying one of the four new tags (52 of 545, split across
+`multi_hop_arithmetic`, `coreference_ambiguity`, and `conflicting_evidence`) need the generated
+`rejected` to introduce exactly one error while leaving the row's independently-supported half
+untouched; none of the four new instructions state that requirement explicitly. In the three
+sampled rows combining a partial answerability with one of these tags (`ex_0513`, `ex_0502`,
+`ex_0485`), `gpt-5-mini` preserved the untouched half correctly each time without being told to;
+the remaining 49 rows in that combination have not been checked individually.
 
 480 real pairs were generated from `data_v2_train.jsonl`, one API call per row:
 
@@ -108,50 +113,49 @@ seven `negative_type` values was read manually against its source evidence, ques
 `chosen` answer; none showed a quality problem. `build_preference.py --all` holds every row in
 memory and writes the output file only once the run completes; a network interruption during
 this run did not cause a failure, but the script has no incremental checkpointing to protect a
-future run from one that doesn't recover.
+future run from one that does not recover.
 
-## Writing the DPO training script
+## The DPO training script: resolving reference-model ambiguity
 
-DPO needs both a policy (updated during training) and a reference (frozen, representing the
-model's state before DPO starts) to compute its loss. Continuing training on the same LoRA
-adapter SFT produced would make "reference" ambiguous: disabling that adapter to compute a
-reference value returns the *base* model, since that adapter is the only thing distinguishing
-post-SFT from pre-SFT, not the post-SFT state the reference is supposed to represent. This is a
-real, open issue in `huggingface/trl`
-(["Inncorrect reference model used when using pretrained policy adapters", issue #1340](https://github.com/huggingface/trl/issues/1340)),
-not a hypothetical concern.
+DPO requires both a policy, updated during training, and a reference, frozen at the model's
+state before DPO starts, to compute its loss. Continuing training on the same LoRA adapter SFT
+produced would make the reference ambiguous: disabling that adapter to compute a reference value
+returns the base model, since that adapter is the only thing distinguishing post-SFT from
+pre-SFT, not the post-SFT state the reference is supposed to represent. `huggingface/trl` has an
+open issue on exactly this
+(["Inncorrect reference model used when using pretrained policy adapters", issue #1340](https://github.com/huggingface/trl/issues/1340)).
 
-`train_dpo.py` avoids it: `load_merged_sft_model` merges the given SFT adapter into the base
-model's weights first (`peft`'s `merge_and_unload`), then a fresh, untrained LoRA adapter is
-attached on top of that merged model for `DPOTrainer` to train. Reference and policy are now
-unambiguous: the merged weights are fixed, and toggling only the new adapter distinguishes
-"before this DPO run" from "during it." Passing `peft_config` for that new adapter without a
-`ref_model` is what tells `DPOTrainer` to derive the reference this way instead of loading a
-second full copy of the model; passing both raises `ValueError` (confirmed against
-[huggingface.co/docs/trl/dpo_trainer](https://huggingface.co/docs/trl/dpo_trainer)).
+`train_dpo.py` avoids it. `load_merged_sft_model` merges the given SFT adapter into the base
+model's weights first (`peft`'s `merge_and_unload`), then attaches a fresh, untrained LoRA
+adapter on top of that merged model for `DPOTrainer` to train. Reference and policy are now
+unambiguous: the merged weights are fixed, and toggling only the new adapter distinguishes the
+model's state before this DPO run from its state during it. Passing `peft_config` for that new
+adapter without a `ref_model` signals `DPOTrainer` to derive the reference this way instead of
+loading a second full copy of the model; passing both raises `ValueError`, confirmed against
+[huggingface.co/docs/trl/dpo_trainer](https://huggingface.co/docs/trl/dpo_trainer).
 
 | Setting | Value | Reason |
 |---|---|---|
 | LoRA `r` / `alpha` / `target_modules` | 16 / 32 / `q_proj`, `v_proj` | Matches the SFT adapter's own configuration |
 | `beta` | 0.1 | trl's default; not yet tuned against this data |
-| `loss_type` | `sigmoid` | The original DPO formulation; `ipo`/other variants are later ablation work |
+| `loss_type` | `sigmoid` | The original DPO formulation; `ipo` and other variants are later ablation work |
 | `per_device_train_batch_size` × `gradient_accumulation_steps` | 1 × 16 | DPO scores both `chosen` and `rejected` per example, roughly doubling SFT's per-step memory at the same batch size |
 | `max_length` | 512 | Matches SFT; `data_v2_train.jsonl`'s evidence and answers average 21 words |
 
-`build_dpo_rows` wraps each pair's `prompt`/`chosen`/`rejected` in role/content form before
-handing them to `DPOTrainer`, the same reason `train_sft.py`'s
+`build_dpo_rows` wraps each pair's `prompt`, `chosen`, and `rejected` fields in role/content
+form before handing them to `DPOTrainer`, for the same reason `train_sft.py`'s
 `build_prompt_completion_rows` does: it makes the trainer apply the tokenizer's chat template
 automatically, matching the format `hf_backend.py` already applies at inference time.
 
-`PreferencePair` validation is defined inline in `train_dpo.py`
-(`validate_preference_jsonl`) rather than as a standalone module under `grounded_refusal/data/`,
-unlike `validate_qa_jsonl_against_schema.py`, which both `train_sft.py` and `run_inference.py`
-import and reuse. Extracting it to match that pattern is deferred, not done here.
+`PreferencePair` validation is defined inline in `train_dpo.py` (`validate_preference_jsonl`)
+rather than as a standalone module under `grounded_refusal/data/`, unlike
+`validate_qa_jsonl_against_schema.py`, which both `train_sft.py` and `run_inference.py` import
+and reuse. Extracting it to match that pattern is deferred, not done here.
 
 ## Next: Week 7
 
 Run `train_dpo.py` from the `data_v2_train` SFT checkpoint. Run base, SFT, and DPO inference on
-`data_v2_heldout.jsonl` (the split none of the three has trained on) and score all three with
+`data_v2_heldout.jsonl`, the split none of the three has trained on, and score all three with
 `judge.py`. Compare the three independent metric groups from
 [`EVAL_METRICS.md`](../EVAL_METRICS.md), watching in particular whether DPO's hallucination rate
 drops without its over-refusal rate rising in exchange.
