@@ -59,7 +59,9 @@ a training set and a held-out evaluation set of matching difficulty.
 
 Held-out's `answerable` share (48%) exceeds the full set's (43%) because the 55%-`answerable`
 pilot sits entirely inside it. Metrics computed on `data_v2_heldout` alone should be read with
-that skew in mind, not treated as representative of `data_v2`'s overall composition.
+that skew in mind, not treated as representative of `data_v2`'s overall composition. This split
+does not separately balance the free-text `tags` field; a train/held-out imbalance on a specific
+tag like `coreference_ambiguity` is possible and unverified.
 
 ## Retraining SFT on data_v2_train
 
@@ -91,7 +93,8 @@ mechanism it tested.
 `choose_negative_type` now checks these four tags first, in priority order, before falling
 through to the original map, each routing to its own new `negative_type` with a matching
 `rejected`-writing instruction. `conflicting_evidence`'s instruction, for instance, has the model
-pick the later-stated of two conflicting values, reproducing the recency bias
+pick the later-stated of two conflicting values, reproducing the recency bias (preferring
+whichever value appears later in the evidence text) that
 [`DATA_V2_EXTENSION.md`](../DATA_V2_EXTENSION.md) measured in the base model's actual failures,
 rather than an arbitrary wrong answer.
 
