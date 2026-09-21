@@ -26,7 +26,7 @@ problems.
 |------|------|-------|
 | Train/held-out split | [`split_train_heldout.py`](../../src/grounded_refusal/data/split_train_heldout.py) | Stratified by `answerability` × `evidence_challenge`; pilot rows pinned to held-out |
 | Split outputs | [`data_v2_train.jsonl`](../../data/data_v2_train.jsonl) (480), [`data_v2_heldout.jsonl`](../../data/data_v2_heldout.jsonl) (120) | |
-| SFT retrain | n/a (checkpoint not committed) | `train_sft.py` on `data_v2_train.jsonl`, same `configs/train/lora.yaml` recipe as Week 4 |
+| SFT retrain | [`run_metadata.json`](../../checkpoints/20260913_193703_lora/run_metadata.json) (480 rows, 3 epochs) | `train_sft.py` on `data_v2_train.jsonl`, same `configs/train/lora.yaml` recipe as Week 4 |
 | Preference generation: tag routing | [`build_preference.py`](../../src/grounded_refusal/data/build_preference.py), [`PREFERENCE_GENERATION_PROTOCOL.md`](../PREFERENCE_GENERATION_PROTOCOL.md) | Four new `negative_type` values for `data_v2`'s tag-based failure modes |
 | Preference generation: model | `build_preference.py` | `DEFAULT_MODEL`: `gpt-4o-mini` → `gpt-5-mini` |
 | Preference data | [`preference_v2_train.jsonl`](../../data/preference_v2_train.jsonl) (480) | |
@@ -73,11 +73,10 @@ built at different times for different purposes, removing the mismatch described
 Checkpoint weights are not committed to git, consistent with
 [`checkpoints/README.md`](../../checkpoints/README.md).
 
-Checkpoint: [`checkpoints/20260913_193703_lora`](../../checkpoints/20260913_193703_lora), 3 epochs
-on the 480-row `data_v2_train.jsonl`, per its
-[`run_metadata.json`](../../checkpoints/20260913_193703_lora/run_metadata.json). Per-step training
-loss was not retained: `train_sft.py` only writes `run_metadata.json` (no `trainer_state.json`,
-wandb, or tensorboard logging), so this run's loss curve, unlike Week 4's, is not available.
+This retrain produced
+[`checkpoints/20260913_193703_lora`](../../checkpoints/20260913_193703_lora), 3 epochs on the
+480-row `data_v2_train.jsonl`, recorded in its
+[`run_metadata.json`](../../checkpoints/20260913_193703_lora/run_metadata.json).
 
 ## Extending preference generation for data_v2's failure modes
 
@@ -117,7 +116,7 @@ higher than `hedged_uncertainty`, so those 20 rows are classified under the othe
 
 ### Results
 
-Partial-answerability rows carrying one of the four new tags (46 of 545: 19 `conflicting_evidence`,
+Partial-answerability rows carrying one of the four new tags (46 of 480: 19 `conflicting_evidence`,
 14 `multi_hop_arithmetic`, 13 `coreference_ambiguity`, no overlap between them) need the generated
 `rejected` to introduce exactly one error while leaving the row's already-supported half
 untouched; none of the four new instructions state that requirement explicitly. In the three
@@ -188,15 +187,21 @@ automatically, matching the format `hf_backend.py` already applies at inference 
 
 ### Known follow-up
 
-`train_dpo.py` has not been run end-to-end yet -- it is written and reviewed against `trl`'s docs
-(see the module docstring), but no DPO checkpoint has actually been produced with it. Week 7's
-first step is running it for real, which is also the first point at which any bugs in the untested
-path would surface.
+1. `train_dpo.py` has not been run end-to-end yet. It is written and reviewed against `trl`'s docs
+   (see the module docstring), but no DPO checkpoint has actually been produced with it. Week 7's
+   first step is running it for real, which is also the first point at which any bugs in the
+   untested path would surface.
 
-`PreferencePair` validation is defined inline in `train_dpo.py` (`validate_preference_jsonl`)
-rather than as a standalone module under `grounded_refusal/data/`, unlike
-`validate_qa_jsonl_against_schema.py`, which both `train_sft.py` and `run_inference.py` import
-and reuse. Extracting it to match that pattern is deferred, not done here.
+2. `PreferencePair` validation is defined inline in `train_dpo.py` (`validate_preference_jsonl`)
+   rather than as a standalone module under `grounded_refusal/data/`, unlike
+   `validate_qa_jsonl_against_schema.py`, which both `train_sft.py` and `run_inference.py` import
+   and reuse. Extracting it to match that pattern is deferred, not done here.
+
+3. Neither `train_sft.py` nor `train_dpo.py` writes a per-step training log. Only
+   `run_metadata.json`'s run-level summary survives. Week 4's loss table came from reading trainer
+   output off the terminal during that run; this retrain has no equivalent. Capturing
+   `trainer_state.json` (or equivalent per-step logging) into the checkpoint directory is planned,
+   not done here.
 
 ## Next: Week 7
 
