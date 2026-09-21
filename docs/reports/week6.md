@@ -203,6 +203,11 @@ automatically, matching the format `hf_backend.py` already applies at inference 
    `trainer_state.json` (or equivalent per-step logging) into the checkpoint directory is planned,
    not done here.
 
+4. `build_preference.py --all` holds every row in memory and writes `--output` only once, when the
+   full run finishes; a crash partway through loses every row already generated, and the API spend
+   that produced them. Adding incremental writes to match `run_eval.py`'s `judge_all` pattern is
+   deferred, not done here.
+
 ## Next: Week 7
 
 Run `train_dpo.py` from the `data_v2_train` SFT checkpoint. Run base, SFT, and DPO inference on
