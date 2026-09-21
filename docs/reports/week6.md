@@ -73,8 +73,11 @@ built at different times for different purposes, removing the mismatch described
 Checkpoint weights are not committed to git, consistent with
 [`checkpoints/README.md`](../../checkpoints/README.md).
 
-**TBD:** checkpoint identifier, epoch count, and training loss, once `run_metadata.json` for this
-run is available and added to that file's table.
+Checkpoint: [`checkpoints/20260913_193703_lora`](../../checkpoints/20260913_193703_lora), 3 epochs
+on the 480-row `data_v2_train.jsonl`, per its
+[`run_metadata.json`](../../checkpoints/20260913_193703_lora/run_metadata.json). Per-step training
+loss was not retained: `train_sft.py` only writes `run_metadata.json` (no `trainer_state.json`,
+wandb, or tensorboard logging), so this run's loss curve, unlike Week 4's, is not available.
 
 ## Extending preference generation for data_v2's failure modes
 
@@ -184,6 +187,11 @@ before handing them to `DPOTrainer`, for the same reason `train_sft.py`'s
 automatically, matching the format `hf_backend.py` already applies at inference time.
 
 ### Known follow-up
+
+`train_dpo.py` has not been run end-to-end yet -- it is written and reviewed against `trl`'s docs
+(see the module docstring), but no DPO checkpoint has actually been produced with it. Week 7's
+first step is running it for real, which is also the first point at which any bugs in the untested
+path would surface.
 
 `PreferencePair` validation is defined inline in `train_dpo.py` (`validate_preference_jsonl`)
 rather than as a standalone module under `grounded_refusal/data/`, unlike

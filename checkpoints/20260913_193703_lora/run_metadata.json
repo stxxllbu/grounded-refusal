@@ -1,0 +1,14 @@
+{
+  "base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "trained_on": "data/data_v2_train.jsonl",
+  "num_rows": 480,
+  "num_epochs": 3,
+  "lora_r": 16,
+  "lora_target_modules": [
+    "v_proj",
+    "q_proj"
+  ],
+  "train_config": "configs/train/lora.yaml",
+  "git_commit": "a2ad29272c551577ac11262b893777fe81c25c42",
+  "created_at": "2026-09-13T19:40:40"
+}

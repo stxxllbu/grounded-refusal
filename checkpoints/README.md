@@ -28,6 +28,7 @@ add a checkpoint.
 | Checkpoint | Base model | Trained on | Config | Metadata |
 |---|---|---|---|---|
 | `20260823_151044_lora` | Qwen2.5-3B-Instruct | `data_v1_pilot` (50 rows), 3 epochs | [`../configs/train/lora.yaml`](../configs/train/lora.yaml) | [`run_metadata.json`](20260823_151044_lora/run_metadata.json) |
+| `20260913_193703_lora` | Qwen2.5-3B-Instruct | `data_v2_train` (480 rows), 3 epochs | [`../configs/train/lora.yaml`](../configs/train/lora.yaml) | [`run_metadata.json`](20260913_193703_lora/run_metadata.json) |
 
 **After a training run:**
 1. Nothing to do for `run_metadata.json` — `train_sft.py` writes it automatically.
