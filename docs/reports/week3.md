@@ -83,6 +83,8 @@ Same model, much worse: `abstention_recall` drops from 0.95 to 0.63, `hallucinat
 
 Running the eval side of this hit a real constraint worth noting: this OpenAI org's `gpt-4o` limit is 30,000 tokens/minute, and judging a full pilot run at the default `--max-workers 4` reliably exhausted it (429 errors) partway through. `run_eval.py` has no checkpointing, so a crash meant re-judging (and re-paying for) every row from scratch. Worked around by always running one judge job at a time, solo, at `--max-workers 1` — this avoids the crash but isn't a real fix: there's still no backoff, retry, or checkpointing in `run_eval.py`, so a crash under any other concurrency setting (or a shared TPM budget with any other process) would still lose all progress on that run. Adding checkpointing is unstarted, real tech debt.
 
+**Update (2026-08-26, commit `215e471`):** `run_eval.py` now judges rows one at a time and appends each result to `--output` as soon as it finishes, so a crash no longer loses rows already judged; rerunning with `--resume` skips them. `--max-workers` was removed along with concurrent judging.
+
 **5. Found and fixed a small judge-calibration issue (issue #1).** Reviewing `data_v2_pilot`'s judge output by hand turned up 4 mislabeled rows, all on `known_world_conflict` — the judge's few-shot examples had no worked case for "model faithfully follows evidence that's wrong in reality," so it sometimes penalized correct behavior (e.g. marking a response `unfaithful` for accurately restating a fictional evidence value, when it should have been faithful by definition). Fixed with one added example in `judge.py`; verified by re-judging and by manually re-checking all 19 `known_world_conflict` rows. `data_v2_pilot`'s `hallucination_rate` above (0.1905) already reflects the fix (pre-fix: 0.2857).
 
 ## How to run
@@ -120,11 +122,17 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
 PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --input outputs/inference-qwen2.5-3b-instruct/base_v1_pilot.jsonl \
   --output outputs/eval-qwen2.5-3b-instruct/base_v1_pilot_eval_judge-gpt4o.jsonl \
-  --overwrite \
-  --max-workers 1
+  --judge-model gpt-4o \
+  --overwrite
 ```
 
+**Update (2026-08-26, commit `215e471`):** `--max-workers 1` removed from the command above; `run_eval.py` no longer has that flag. If a run stops partway, rerun with `--resume` in place of `--overwrite`.
+
+**Update (2026-08-28, commit `8355f1c`):** `--judge-model gpt-4o` added to the command above; the default judge is now gpt-5-mini, so without it the command would no longer reproduce this report's numbers.
+
 Output: one `EvalResult` row per scored example in `--output`, plus up to seven metrics printed as JSON to stdout — each key present only if its underlying row count is non-zero. `--limit` caps how many selected rows are scored.
+
+**Update (2026-08-27, commit `cbf2ff8`):** `--output` now stores only the judge's raw result per row (`id`, `predicted_behavior`, `is_faithful`, `rationale`); outcomes are recomputed from it on each run instead of saved. The committed `base_v1_pilot_eval_judge-gpt4o.jsonl` predates this and is still in the full `EvalResult` format.
 
 `tests/test_verdict.py` — 20 pytest cases anchored on `PREFERENCE_GENERATION_PROTOCOL.md`'s five worked examples, covering both `derive_abstention_outcome` and `derive_partial_outcome`. Pure functions, fully deterministic:
 
@@ -136,7 +144,7 @@ PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_verdict.py -v
 
 - **Small n, especially for slices.** `hallucination_rate` on `data_v2_pilot` is computed over 42 "attempted" rows; `partial_match_rate` over just 6 `partial` rows. A rate moving from 0.95 to 0.63 on ~19-20 unanswerable rows per set is suggestive, not statistically tight — treat these as directional signals for an 8-week MVP, not precise estimates.
 - **Judge calibration is partial, not complete.** The manual review covered all 19 rows of the `known_world_conflict` category on `data_v2_pilot` — not `distractor_entity`, not `partial_evidence` beyond a few spot-checks, not `data_v1_pilot`, and not against real human labels.
-- **Update, added later:** gpt-4o (the judge used for every number above) was subsequently found to have specific, systematic calibration issues of its own. See [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) for the analysis; read this report's numbers with that in mind.
+- **Update (2026-08-28, commit `0f66d80`):** gpt-4o (the judge used for every number above) was subsequently found to have specific, systematic calibration issues of its own. See [`docs/JUDGE_MODEL.md`](../JUDGE_MODEL.md) for the analysis; read this report's numbers with that in mind.
 - **No automated finer-than-`answerability` slicing.** The `known_world_conflict` review was done by hand; `metrics.py` doesn't compute per-`evidence_challenge` breakdowns yet.
 
 ## Not in Week 3
