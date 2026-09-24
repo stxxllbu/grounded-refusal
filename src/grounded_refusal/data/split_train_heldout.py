@@ -5,7 +5,8 @@ they've already been read and judged repeatedly for judge validation
 (docs/JUDGE_MODEL.md), so training on them would contaminate that history.
 The remaining rows are stratified by (answerability, evidence_challenge) and
 sampled deterministically so the overall held-out share matches
---heldout-frac.
+--heldout-frac. Each row's split field is set to "train" or "test" to match
+the file it lands in.
 """
 
 from __future__ import annotations
@@ -66,6 +67,8 @@ def split_rows(
         heldout_rows.extend(group[:n_heldout])
         train_rows.extend(group[n_heldout:])
 
+    train_rows = [{**r, "split": "train"} for r in train_rows]
+    heldout_rows = [{**r, "split": "test"} for r in heldout_rows]
     return train_rows, heldout_rows
 
 
