@@ -37,10 +37,10 @@ def _get_client() -> OpenAI:
     return _client
 
 
-# Few-shot anchors are the same five rows PREFERENCE_GENERATION_PROTOCOL.md
-# uses for its worked examples (pref_0021/0042/0026/0051/0031), reformatted
-# as (response -> predicted_behavior, is_faithful) instead of negative_type,
-# since the judge never sees or produces negative_type.
+# Six of the few-shot examples come from the worked examples in
+# PREFERENCE_GENERATION_PROTOCOL.md: pref_0021, pref_0042, pref_0026,
+# pref_0051, and both answers of pref_0031. The rest were each added to fix
+# a specific judge mistake.
 JUDGE_SYSTEM_PROMPT = """You are grading a language model's answer for an evidence-grounded QA task.
 
 You will see the full prompt shown to the model (Evidence, Question, Instruction) and the model's response. Judge two independent things:
