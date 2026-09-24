@@ -202,7 +202,9 @@ def main(argv: list[str] | None = None) -> int:
         rows_to_judge, model=args.judge_model, dry_run=args.dry_run, output_path=args.output
     )
 
-    scored_results = score_all(rows_by_id, previously_judged_raw + newly_judged_raw)
+    # --output can hold rows outside this run's --ids/--limit selection; score only the selected ones.
+    previously_judged_selected = [r for r in previously_judged_raw if r["id"] in rows_by_id]
+    scored_results = score_all(rows_by_id, previously_judged_selected + newly_judged_raw)
     print(json.dumps(aggregate(scored_results), indent=2))
 
     return 0
