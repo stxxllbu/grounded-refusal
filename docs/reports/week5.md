@@ -101,6 +101,11 @@ response `partial` whenever it answers one thing and adds an aside about somethi
 checking whether the question actually has two distinct parts (10 of 30 cases, across all three test
 sets).
 
+**Update (2026-09-24, commit `51ba72b`):** These counts are now 12 and 9. `ex_0053` had been
+listed under the second pattern, but both judges called it `refuse`; they disagreed only on
+`is_faithful`, which puts it in the first pattern. See the Summary in
+[`JUDGE_MODEL.md`](../JUDGE_MODEL.md#summary).
+
 **`ex_0099`**: accepting an unchecked claim.
 
 - Question: "What fund does James Whitfield, the risk officer at Cornerstone Capital who joined in
