@@ -1020,11 +1020,11 @@ gpt-5-mini is right on all 30 disagreements with gpt-4o; gpt-4o is not right on 
 of them. Two patterns account for most of them:
 
 **gpt-4o repeats the response's own claims back as true instead of checking them
-against the evidence:** `ex_0099`, `ex_0111`, `ex_0112`, `ex_0122`, `ex_0138` (base);
-`ex_0109`, `ex_0130` (arithmetic/algebra derivations gpt-4o doesn't verify);
-`ex_0097`, `ex_0134`, `ex_0135` (treating an unsupported inference as if it were
-stated); `ex_0115` (applying a stricter standard than the prompt's own definition of
-`is_faithful` asks for).
+against the evidence:** `ex_0099`, `ex_0122`, `ex_0138` (base); `ex_0111`, `ex_0112`
+(SFT); `ex_0109`, `ex_0130` (arithmetic/algebra derivations gpt-4o doesn't verify);
+`ex_0097`, `ex_0134`, `ex_0135`, and `ex_0053` in `data_v1_pilot` (treating an
+unsupported inference as if it were stated); `ex_0115` (applying a stricter standard
+than the prompt's own definition of `is_faithful` asks for).
 
 **gpt-4o classifies `partial` whenever a response answers something and declines
 something else, without checking whether the question actually has two distinct
@@ -1032,14 +1032,13 @@ parts, or whether the answered part is even faithful:** `ex_0098` (base and SFT)
 `ex_0122`, `ex_0134` (single-fact questions with no real second part), `ex_0105`
 (SFT: a genuine two-part question where the answered part is unfaithful, which
 `judge.py` treats as `answer`, not `partial`), and `ex_0036`, `ex_0049`, `ex_0065`,
-`ex_0066`, `ex_0053` in `data_v1_pilot` (same single-fact-question issue).
+`ex_0066` in `data_v1_pilot` (same single-fact-question issue).
 
 The remaining rows (`ex_0092` base and SFT, `ex_0144`, `ex_0145`) turn on whether a
 hedged or imprecise value still counts as answering the question. It does, if the
 response actually commits to it as its answer (`ex_0144`, `ex_0065`, SFT's `ex_0145`);
 it does not, if the response only recaps it as background before declining
-(base's `ex_0145`) or if it's a relation between two other unknowns rather than a
-value at all (`ex_0053`'s "not located in France").
+(base's `ex_0145`).
 
 `ex_0143` (SFT) is the same pattern too: the evidence's "aside from Sample 7" marks
 it as the exception to "none tested positive," and gpt-4o's `False` call overrides
