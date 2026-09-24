@@ -22,7 +22,7 @@ the data.
 ```bash
 pip install -e ".[dev]"          # core + tests
 pip install -e ".[inference]"    # + torch/transformers/peft, to run a model
-pip install -e ".[train]"        # + trl/datasets, for LoRA SFT training
+pip install -e ".[train]"        # + trl/datasets, for LoRA SFT and DPO training
 
 export PYTHONPATH=src
 
@@ -53,7 +53,7 @@ python -m grounded_refusal.eval.run_eval \
 | [`src/grounded_refusal/data/`](src/grounded_refusal/data/) | QA/preference schemas, generation scripts, schema validation |
 | [`src/grounded_refusal/inference/`](src/grounded_refusal/inference/) | Base-model and LoRA-adapter inference |
 | [`src/grounded_refusal/eval/`](src/grounded_refusal/eval/) | LLM judge, verdict logic, metric aggregation |
-| [`src/grounded_refusal/train/`](src/grounded_refusal/train/) | LoRA SFT training |
+| [`src/grounded_refusal/train/`](src/grounded_refusal/train/) | LoRA SFT and DPO training |
 
 ## Status
 
@@ -63,6 +63,8 @@ python -m grounded_refusal.eval.run_eval \
 | 2 | Pilot QA + preference (50 + 50) | **pilot done**; full ~500 deferred | [`docs/reports/week2.md`](docs/reports/week2.md) |
 | 3 | Eval / base baseline | **eval harness built**; ran baseline on `data_v1_pilot` and `data_v2_pilot` | [`docs/reports/week3.md`](docs/reports/week3.md) |
 | 4 | SFT training pipeline | **pipeline built + smoke-test run** | [`docs/reports/week4.md`](docs/reports/week4.md) |
+| 5 | Judge validation + `data_v2` extension | **judge switched to gpt-5-mini**; `data_v2` extended to 600 rows | [`docs/reports/week5.md`](docs/reports/week5.md) |
+| 6 | `data_v2` split, SFT retrain, DPO pipeline | **SFT retrained on `data_v2_train`**; DPO script written, not yet run | [`docs/reports/week6.md`](docs/reports/week6.md) |
 
 ## Quick data pointers
 
@@ -74,6 +76,9 @@ python -m grounded_refusal.eval.run_eval \
 | [`data/preference_v1_pilot.jsonl`](data/preference_v1_pilot.jsonl) | 50 | Week 2 DPO pairs (1:1 with Layer 2) |
 | [`data/data_v2_pilot.jsonl`](data/data_v2_pilot.jsonl) | 55 | Week 3 hand-built adversarial stress test |
 | [`data/data_v2.jsonl`](data/data_v2.jsonl) | 600 | `data_v2_pilot` extended to 600 rows, weighted toward empirically-validated high-failure-rate mechanisms — see [`docs/DATA_V2_EXTENSION.md`](docs/DATA_V2_EXTENSION.md) |
+| [`data/data_v2_train.jsonl`](data/data_v2_train.jsonl) | 480 | Week 6 training split of `data_v2` (`train`) |
+| [`data/data_v2_heldout.jsonl`](data/data_v2_heldout.jsonl) | 120 | Week 6 held-out split, includes all 55 `data_v2_pilot` rows (`test`) |
+| [`data/preference_v2_train.jsonl`](data/preference_v2_train.jsonl) | 480 | Week 6 DPO pairs (1:1 with `data_v2_train`) |
 
 **Week 2 pilot mix (QA):** 20 answerable / 20 unanswerable / 10 partial.  
 **Week 2 pilot mix (preference):** 17 over_refusal / 10 hallucination / 10 distractor_confusion / 10 over_complete / 3 memory_override.  
