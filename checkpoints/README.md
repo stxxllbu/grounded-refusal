@@ -45,6 +45,7 @@ Same data, config, and seed:
 
 ```bash
 PYTHONPATH=src python -m grounded_refusal.train.train_sft \
+  --data data/data_v2_train.jsonl \
   --train-config configs/train/lora.yaml
 ```
 

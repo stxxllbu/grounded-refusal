@@ -14,8 +14,8 @@ training:
   gradient_accumulation_steps: 8  # effective batch size 16, without holding 16 examples' activations at once
   gradient_checkpointing: true    # trade compute time for activation memory — needed at 16GB
   learning_rate: 2.0e-4           # LoRA typically wants a higher LR than full fine-tuning (fresh A/B params)
-  logging_steps: 2                # 12 optimizer steps on the 50-row v1 pilot at this batch/accum config; default 500 would never log
-  save_strategy: "no"             # only 50 rows — just save the final adapter, no mid-run checkpoints
+  logging_steps: 2                # default 500 exceeds a whole run's optimizer steps at this data size, so it would never log
+  save_strategy: "no"             # short run — just save the final adapter, no mid-run checkpoints
   bf16: true
   max_length: 512
   seed: 42

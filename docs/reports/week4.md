@@ -115,8 +115,11 @@ and answers no part of "why did it fail." That is also `refuse`.
 **1. Training run.**
 
 ```bash
-PYTHONPATH=src python -m grounded_refusal.train.train_sft
+PYTHONPATH=src python -m grounded_refusal.train.train_sft \
+  --data data/data_v1_pilot.jsonl
 ```
+
+**Update (2026-09-23, commit `00fa489`):** `--data data/data_v1_pilot.jsonl` added to the command above; `train_sft.py`'s default `--data` is now `data/data_v2_train.jsonl`, so without it the command would no longer reproduce this report's training run.
 
 This trains on the 50 rows in `data/data_v1_pilot.jsonl` for 3 epochs, with an effective batch size
 of 16. It ran in 21.7 seconds on the RTX 5060 Ti and produced the checkpoint
@@ -163,7 +166,8 @@ not this one, is the one to trust.
 
 ```bash
 # 1. Train
-PYTHONPATH=src python -m grounded_refusal.train.train_sft
+PYTHONPATH=src python -m grounded_refusal.train.train_sft \
+  --data data/data_v1_pilot.jsonl
 
 # 2. Run the trained adapter against a pilot set
 PYTHONPATH=src python -m grounded_refusal.inference.run_inference \
@@ -177,6 +181,8 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --output outputs/eval-qwen2.5-3b-instruct-sft/<name>_eval.jsonl \
   --overwrite
 ```
+
+**Update (2026-09-23, commit `00fa489`):** `--data data/data_v1_pilot.jsonl` added to the command above; `train_sft.py`'s default `--data` is now `data/data_v2_train.jsonl`, so without it the command would no longer train on this report's data.
 
 ## Limitations
 
