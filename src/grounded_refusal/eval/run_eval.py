@@ -166,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--judge-model",
         default=os.environ.get("OPENAI_JUDGE_MODEL", DEFAULT_JUDGE_MODEL).strip(),
-        help="Judge model name (default: OPENAI_JUDGE_MODEL env or gpt-4o-2024-08-06)",
+        help=f"Judge model name (default: OPENAI_JUDGE_MODEL env or {DEFAULT_JUDGE_MODEL})",
     )
     args = parser.parse_args(argv)
 
