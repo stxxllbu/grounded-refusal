@@ -3,16 +3,17 @@
 How the eval harness scores one model output row, and how those scores roll up into
 metrics. **Edit here first**, then update `src/grounded_refusal/eval/`.
 
-Full design discussion (why this replaced an earlier 7-category verdict taxonomy):
-see conversation history. This doc captures the aligned result, not the discarded
-attempt.
+Why this replaced an earlier 7-category verdict taxonomy is explained in
+[Where did `evidence_challenge` go?](#where-did-evidence_challenge-go) below; the change
+itself is commit `afb9862`.
 
 ---
 
 ## Two judge signals, nothing else
 
-The LLM judge (`judge.py`, GPT-4o) reads `evidence` + `question` + `model_output` and
-returns exactly two things. It never sees gold labels, and never decides a verdict —
+The LLM judge in `judge.py` reads `evidence` + `question` + `model_output` and
+returns exactly two things. Which model is the judge, and why, is covered in
+[`JUDGE_MODEL.md`](JUDGE_MODEL.md). The judge never sees gold labels, and never decides a verdict —
 only these two facts:
 
 | Field | Values | What it means |
