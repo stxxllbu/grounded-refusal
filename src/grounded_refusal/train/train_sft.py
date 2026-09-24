@@ -1,4 +1,4 @@
-"""LoRA SFT on data_v1_pilot.jsonl.
+"""LoRA SFT training.
 
 Builds (prompt, completion) pairs from QA rows (prompt = format_qa_prompt(),
 completion = reference_answer), trains a LoRA adapter with trl's SFTTrainer,
@@ -106,7 +106,7 @@ def build_prompt_completion_rows(
 
 def train_sft_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train a LoRA SFT adapter on QA JSONL.")
-    parser.add_argument("--data", type=Path, default=Path("data/data_v1_pilot.jsonl"))
+    parser.add_argument("--data", type=Path, default=Path("data/data_v2_train.jsonl"))
     parser.add_argument("--prompt-config", type=Path, default=Path("configs/prompts/default.yaml"))
     parser.add_argument("--model-config", type=Path, default=Path("configs/models/base.yaml"))
     parser.add_argument("--train-config", type=Path, default=Path("configs/train/lora.yaml"))
