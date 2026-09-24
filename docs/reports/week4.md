@@ -182,6 +182,8 @@ PYTHONPATH=src python -m grounded_refusal.eval.run_eval \
   --overwrite
 ```
 
+**Update (2026-08-28, commit `8355f1c`):** The default judge is now gpt-5-mini, so step 3 no longer uses gpt-4o, the judge behind this report's numbers. Pass `--judge-model gpt-4o` to reproduce them; see Week 5 for why gpt-5-mini is the judge to trust.
+
 **Update (2026-09-23, commit `00fa489`):** `--data data/data_v1_pilot.jsonl` added to the command above; `train_sft.py`'s default `--data` is now `data/data_v2_train.jsonl`, so without it the command would no longer train on this report's data.
 
 ## Limitations
