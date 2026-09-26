@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -17,7 +20,9 @@ def run_sequential_inference(
     """Run inference one prompt at a time (no batching -- fine at pilot scale).
 
     ``adapter_path``, if given, loads a LoRA adapter (e.g. from train_sft.py's
-    output_dir) on top of the frozen base model via peft.
+    output_dir) on top of the frozen base model via peft. If that checkpoint's
+    run_metadata.json names an ``sft_adapter`` (DPO checkpoints), that adapter is
+    merged into the base first, as train_dpo.py did before training.
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
@@ -26,6 +31,10 @@ def run_sequential_inference(
         device_map=device_map,
     )
     if adapter_path is not None:
+        metadata = Path(adapter_path) / "run_metadata.json"
+        sft_adapter = json.loads(metadata.read_text()).get("sft_adapter") if metadata.exists() else None
+        if sft_adapter:
+            model = PeftModel.from_pretrained(model, sft_adapter).merge_and_unload()
         model = PeftModel.from_pretrained(model, adapter_path)
 
     outputs: list[str] = []
