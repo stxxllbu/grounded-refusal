@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from grounded_refusal.data.validate_qa_jsonl_against_schema import validate_qa_jsonl_against_schema
+from grounded_refusal.inference.hf_backend import run_sequential_inference
 from grounded_refusal.util.io import write_jsonl
 from grounded_refusal.util.prompt_assembly import format_qa_prompt, load_yaml_config
 
@@ -61,13 +62,6 @@ def infer_main(argv: list[str] | None = None) -> int:
         write_jsonl(args.output, rows)
         print(f"Dry run: wrote {len(rows)} prompts to {args.output}")
         return 0
-
-    try:
-        from grounded_refusal.inference.hf_backend import run_sequential_inference
-    except ImportError as exc:
-        raise SystemExit(
-            "Inference dependencies missing. Install with: pip install -e '.[inference]'"
-        ) from exc
 
     max_new_tokens = args.max_new_tokens or model_cfg.get("max_new_tokens", 256)
     outputs = run_sequential_inference(
