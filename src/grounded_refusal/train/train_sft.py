@@ -144,7 +144,10 @@ def train_sft_main(argv: list[str] | None = None) -> int:
         peft_config=lora_config,
         args=sft_config,
     )
-    trainer.train()
+    try:
+        trainer.train()
+    finally:
+        trainer.state.save_to_json(str(Path(sft_config.output_dir) / "trainer_state.json"))
     trainer.save_model(sft_config.output_dir)
     write_checkpoint_metadata(
         sft_config.output_dir,

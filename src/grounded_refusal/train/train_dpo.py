@@ -18,6 +18,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import torch
 from datasets import Dataset
 from peft import LoraConfig, PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -60,7 +61,7 @@ def load_merged_sft_model(model_name: str, sft_adapter_path: str):
     The merged model is both DPO's starting point and, with its new adapter
     disabled, DPOTrainer's reference model.
     """
-    base_model = AutoModelForCausalLM.from_pretrained(model_name)
+    base_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
     sft_model = PeftModel.from_pretrained(base_model, sft_adapter_path)
     return sft_model.merge_and_unload()
 
@@ -129,7 +130,10 @@ def train_dpo_main(argv: list[str] | None = None) -> int:
         processing_class=tokenizer,
         peft_config=lora_config,
     )
-    trainer.train()
+    try:
+        trainer.train()
+    finally:
+        trainer.state.save_to_json(str(Path(dpo_config.output_dir) / "trainer_state.json"))
     trainer.save_model(dpo_config.output_dir)
     write_checkpoint_metadata(
         dpo_config.output_dir,
