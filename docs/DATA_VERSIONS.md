@@ -17,8 +17,7 @@ new version is added.
 
 Built by hand (Layer 1) then LLM-paraphrased for fluency (Layer 2), per
 [`QA_GENERATION_PROTOCOL.md`](QA_GENERATION_PROTOCOL.md). A full ~500-row `data_v1.jsonl` was planned
-but deferred (`README.md` Status table) and never built. The base model scored close to perfect on
-this set (`abstention_recall` 0.95, Week 3), which is why `v2` exists.
+but deferred (`README.md` Status table) and never built.
 
 ## v2 — adversarial, extended, split
 
@@ -30,21 +29,17 @@ this set (`abstention_recall` 0.95, Week 3), which is why `v2` exists.
 | [`data/data_v2_heldout.jsonl`](../data/data_v2_heldout.jsonl) | 120 | Week 6. The other 20% of non-pilot rows, plus **all 55 pilot rows**, pinned here so training never sees them |
 | [`data/preference_v2_train.jsonl`](../data/preference_v2_train.jsonl) | 480 | Week 6. DPO pairs, 1:1 with `data_v2_train.jsonl` |
 
-`data_v2_heldout.jsonl` is the evaluation set every Week 7 result is reported against
-([`week7.md`](reports/week7.md)). Nine of the `tags` values used for adversarial constructions
-(`red_herring`, `conditional_logic`, `negation_exception`, `embedded_instruction`,
-`false_presupposition`, `circular_evidence`, `digit_confusion`, `near_miss`, `adjacent_metric`) exist
-**only** on the 55 pilot rows — pinning them all to held-out to protect judge calibration meant these
-nine constructions never appeared in *any* training data, for SFT or DPO. Only four tags scaled into
-`data_v2_train.jsonl`: `coreference_ambiguity`, `hedged_uncertainty`, `conflicting_evidence`,
-`multi_hop_arithmetic`.
+Nine of the `tags` values used for adversarial constructions (`red_herring`, `conditional_logic`,
+`negation_exception`, `embedded_instruction`, `false_presupposition`, `circular_evidence`,
+`digit_confusion`, `near_miss`, `adjacent_metric`) exist **only** on the 55 pilot rows — pinning them
+all to held-out to protect judge calibration meant these nine constructions never appeared in *any*
+training data, for SFT or DPO. Only four tags scaled into `data_v2_train.jsonl`:
+`coreference_ambiguity`, `hedged_uncertainty`, `conflicting_evidence`, `multi_hop_arithmetic`.
 
 ## v3 — closing the nine-tag training gap
 
-Week 7's DPO evaluation found this gap by its effect: DPO's five new over-refusals (rows SFT answered
-correctly but DPO refused) all carried one of those nine untrained tags, and DPO's refusals for them
-often invented a conflict or missing fact that the evidence didn't actually contain. `v3` exists to
-give those nine constructions real training exposure, without touching anything `v2` established.
+`v3` gives the nine tags described above real training exposure, without touching anything `v2`
+established.
 
 | File | Rows | Role |
 |---|---:|---|
@@ -52,9 +47,8 @@ give those nine constructions real training exposure, without touching anything 
 | [`data/data_v3_train.jsonl`](../data/data_v3_train.jsonl) | 672 | `data_v2_train.jsonl`'s 480 rows first, then `data_v3_extension.jsonl`'s 192, same pattern as `data_v2.jsonl` |
 
 **What v3 deliberately does not touch:** `data_v2_pilot.jsonl`, `data_v2.jsonl`, `data_v2_train.jsonl`
-and `data_v2_heldout.jsonl` are all unchanged. `data_v2_heldout.jsonl` stays the evaluation set — a
-model trained on `data_v3_train.jsonl` is still scored on the exact 120 rows Week 7 used, so the
-before/after numbers stay comparable. A separate `v3` held-out set is future work, not done here.
+and `data_v2_heldout.jsonl` are all unchanged, so `data_v2_heldout.jsonl` remains a fixed evaluation
+set across `v2`- and `v3`-trained models. A separate `v3` held-out set is future work, not done here.
 
 **Tag → answerability, fixed for these nine (used to decide `chosen`/`rejected` when preference pairs
 are built for `v3`):**
@@ -63,24 +57,21 @@ are built for `v3`):**
 |---|---|
 | `red_herring`, `conditional_logic`, `negation_exception`, `embedded_instruction`, `digit_confusion` | `false_presupposition`, `circular_evidence`, `near_miss` / `adjacent_metric` |
 
-**Status: 192 rows written and schema-validated, nothing trained on it yet.** 24 rows per tag puts
-each of the nine on comparable footing with the already-trained `multi_hop_arithmetic` (22 rows across
-all of `v2`, and it still failed once stacked with an untrained tag — `week7.md`'s `ex_0118`) to
-`conflicting_evidence` (70 in `data_v2_train.jsonl`). Each tag's 24 rows span distinct domains
-(finance, healthcare, transit, manufacturing, sports, government, retail, and more) and vary the
-construction itself, not just the nouns — e.g. `red_herring` mixes a plain unused-fact form with a
-one-step-arithmetic form, `negation_exception` cycles through five different exception phrasings — so
-the rows don't teach one more surface template the way the `v2` refusal wording did (`week7.md`'s
-finding). No exact-duplicate evidence text and no id collisions with `v2`, checked directly.
+`data/data_v3_extension.jsonl` has 24 rows per tag. Each tag's 24 rows span distinct domains (finance,
+healthcare, transit, manufacturing, sports, government, retail, and more) and vary the construction
+itself, not just the nouns: `red_herring` mixes a plain unused-fact form with a one-step-arithmetic
+form, and `negation_exception` cycles through five different exception phrasings. No exact-duplicate
+evidence text and no id collisions with `v2`, checked directly.
 
-Not done yet: `choose_negative_type` in `build_preference.py` extended to route these nine tags (it
-currently only recognizes the four `v2` tags, so no DPO preference pairs exist for `v3` rows yet), and
-an SFT/DPO retrain on `data_v3_train.jsonl` to confirm the gap actually closes.
+`data/preference_v3_extension.jsonl` and `data/preference_v3_train.jsonl` are the corresponding
+preference pairs, generated by `build_preference.py` (see that script and
+[`PREFERENCE_GENERATION_PROTOCOL.md`](PREFERENCE_GENERATION_PROTOCOL.md) for how `negative_type` is
+chosen and how pairs are built).
 
 ## Quick answer: "which file do I train on"
 
 | Task | File |
 |---|---|
-| Reproduce a Week 4–7 result | `data_v2_train.jsonl` (SFT) / `preference_v2_train.jsonl` (DPO) |
-| Train with the nine-tag gap closed | `data_v3_train.jsonl` |
-| Evaluate any of the above | `data_v2_heldout.jsonl` — unchanged since Week 6 |
+| Reproduce the `v2` SFT / DPO checkpoints | `data_v2_train.jsonl` (SFT) / `preference_v2_train.jsonl` (DPO) |
+| Train with the nine-tag gap closed | `data_v3_train.jsonl` (SFT) / `preference_v3_train.jsonl` (DPO) |
+| Evaluate any of the above | `data_v2_heldout.jsonl` |
