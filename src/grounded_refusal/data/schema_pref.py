@@ -18,6 +18,14 @@ class NegativeType(str, Enum):
     HEDGED_UNCERTAINTY = "hedged_uncertainty"
     CONFLICTING_EVIDENCE = "conflicting_evidence"
     MULTI_HOP_ARITHMETIC = "multi_hop_arithmetic"
+    RED_HERRING = "red_herring"
+    CONDITIONAL_LOGIC = "conditional_logic"
+    NEGATION_EXCEPTION = "negation_exception"
+    EMBEDDED_INSTRUCTION = "embedded_instruction"
+    DIGIT_CONFUSION = "digit_confusion"
+    FALSE_PRESUPPOSITION = "false_presupposition"
+    CIRCULAR_EVIDENCE = "circular_evidence"
+    NEAR_MISS = "near_miss"
 
 
 class PreferenceMetadata(BaseModel):

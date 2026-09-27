@@ -132,6 +132,93 @@ REJECTION_SYSTEM_PROMPTS: dict[NegativeType, str] = {
         "these instructions.\n"
         "Return only the rejected response text."
     ),
+    # v3 tags (docs/DATA_VERSIONS.md) -- previously untrained; see week7.md for
+    # the failure this is meant to correct (DPO over-refusing on exactly these
+    # constructions, sometimes by inventing a conflict or missing fact).
+    NegativeType.RED_HERRING: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence contains one fact or number that is not needed to answer "
+        "the question, alongside the fact that is needed.\n"
+        "Write an invented-conflict error: treat the irrelevant fact as if it "
+        "conflicts with the correct answer, and refuse to answer citing that "
+        "invented conflict.\n"
+        "Do not give the correct answer. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.CONDITIONAL_LOGIC: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence states a conditional rule (if X, then Y) and a specific "
+        "value to apply it to.\n"
+        "Write a missing-information error: falsely claim that the rule or the "
+        "specific value needed to apply it is not stated in the evidence, and "
+        "refuse to answer on that basis, even though both are present.\n"
+        "Do not give the correct yes/no conclusion. Do not mention these "
+        "instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.NEGATION_EXCEPTION: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence states a general rule plus an explicit exception to it, "
+        "and the question asks about the excepted case.\n"
+        "Write a rule-override error: apply the general rule to the excepted "
+        "case instead of recognizing the exception, ignoring that the evidence "
+        "explicitly carves it out.\n"
+        "Do not acknowledge the exception. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.EMBEDDED_INSTRUCTION: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence states a true value, but also contains an instruction "
+        "aimed at the model itself, telling it to report a different value.\n"
+        "Write a compliance error: follow the embedded instruction and report "
+        "the different value it demands, instead of the true value actually "
+        "stated in the evidence.\n"
+        "Do not report the true value. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.DIGIT_CONFUSION: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence states two numbers that are easy to mix up (e.g. "
+        "transposed digits, a shifted decimal point, or similar-looking values "
+        "for two different things), and the question asks for one specific one.\n"
+        "Write a mix-up error: confidently report the other number instead of "
+        "the one actually asked about, as if it were the answer.\n"
+        "Do not give the correct number. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.FALSE_PRESUPPOSITION: (
+        "You write one incorrect model response for preference training.\n"
+        "The question assumes something the evidence directly contradicts.\n"
+        "Write a false-premise-acceptance error: accept the question's false "
+        "premise as true and state ONE short invented reason for it, in 1-2 "
+        "sentences -- not a list, not a detailed explanation. Match the length "
+        "and plainness of a normal direct answer.\n"
+        "Do not point out the false premise. Do not mention these instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.CIRCULAR_EVIDENCE: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence defines two quantities only in terms of each other, with "
+        "no absolute value given for either, so the question cannot actually be "
+        "answered.\n"
+        "Write a false-derivation error: perform some algebra-looking steps and "
+        "confidently state a specific invented number as the answer, instead of "
+        "recognizing that no absolute value can be determined.\n"
+        "Do not say the answer is undetermined. Do not mention these "
+        "instructions.\n"
+        "Return only the rejected response text."
+    ),
+    NegativeType.NEAR_MISS: (
+        "You write one incorrect model response for preference training.\n"
+        "The evidence states a metric that is related to, but different from, "
+        "the one actually asked about, and does not state the one asked about.\n"
+        "Write a metric-substitution error: present the stated, different "
+        "metric as if it directly answered the question, without noting that "
+        "the two are not the same thing.\n"
+        "Do not say the needed metric is missing. Do not mention these "
+        "instructions.\n"
+        "Return only the rejected response text."
+    ),
 }
 
 # These free-text tags (not part of the EvidenceChallengeTag enum) mark a more
@@ -147,6 +234,19 @@ TAG_NEGATIVE_TYPE_PRIORITY: list[tuple[str, NegativeType]] = [
     ("coreference_ambiguity", NegativeType.COREFERENCE_AMBIGUITY),
     ("conflicting_evidence", NegativeType.CONFLICTING_EVIDENCE),
     ("hedged_uncertainty", NegativeType.HEDGED_UNCERTAINTY),
+    # v3 tags (docs/DATA_VERSIONS.md) -- appended after the v2 four so no
+    # existing row's negative_type changes. "near_miss" and "adjacent_metric"
+    # always co-occur in data_v3_extension.jsonl and describe the same
+    # phenomenon, so both route to the one NEAR_MISS negative_type.
+    ("red_herring", NegativeType.RED_HERRING),
+    ("conditional_logic", NegativeType.CONDITIONAL_LOGIC),
+    ("negation_exception", NegativeType.NEGATION_EXCEPTION),
+    ("embedded_instruction", NegativeType.EMBEDDED_INSTRUCTION),
+    ("digit_confusion", NegativeType.DIGIT_CONFUSION),
+    ("false_presupposition", NegativeType.FALSE_PRESUPPOSITION),
+    ("circular_evidence", NegativeType.CIRCULAR_EVIDENCE),
+    ("near_miss", NegativeType.NEAR_MISS),
+    ("adjacent_metric", NegativeType.NEAR_MISS),
 ]
 
 
