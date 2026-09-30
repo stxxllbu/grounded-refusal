@@ -101,6 +101,7 @@ each part is listed here as it lands.
 |---|---:|---|
 | [`data/data_v3b_train.jsonl`](../data/data_v3b_train.jsonl) | 672 | `data_v3a_train.jsonl` with the fixes below applied |
 | [`data/data_v3b_heldout.jsonl`](../data/data_v3b_heldout.jsonl) | 120 | `data_v2_heldout.jsonl` with the fixes below applied; the dev set for `v3b`-trained models |
+| [`data/preference_v3b_train.jsonl`](../data/preference_v3b_train.jsonl) | 672 | `preference_v3a_train.jsonl` with the fixes below applied. **Not ready to train on yet:** `pref_0157` still needs regenerating (see Part 1) |
 
 `data_v2_heldout.jsonl` and `data_v2_pilot.jsonl` stay unchanged, so every number already reported
 against them still matches its file.
@@ -122,8 +123,30 @@ For each: `reference_answer` rewritten to answer directly (in varied wording, no
 `coreference_ambiguity` rejected answer (name one entity), which is now the correct answer. Without
 the tag it routes to `over_refusal`.
 
-**Not done yet:** `preference_v3b_train.jsonl`. `pref_0157` needs a regenerated `rejected`; this is
-deferred until the other `v3b` parts land so all affected pairs are generated in one run.
+**Not done yet:** `pref_0157` in `preference_v3b_train.jsonl` is still the `v3a` pair (a refusal as
+`chosen`). It needs a new `chosen` and a regenerated `rejected`; this is deferred until the other
+`v3b` parts land so all pairs needing an API call are generated in one run.
+
+**Part 2: [issue #18](https://github.com/stxxllbu/grounded-refusal/issues/18).** 23
+`coreference_ambiguity` + `hedged_uncertainty` rows (`ex_0572`–`ex_0594`) ask two things: who did
+something (unanswerable: the pronoun follows two parallel names) and whether something has been
+finalized / filed / issued (answered directly by the evidence's "though …" clause). They are relabeled
+`unanswerable` → `partial`. 18 are in `data_v3b_train.jsonl`; 5 (`ex_0572`, `ex_0581`, `ex_0586`,
+`ex_0587`, `ex_0590`) are in `data_v3b_heldout.jsonl`.
+
+For each: `answerability` set to `partial`; `question_decomposition` added (who / status) with the
+status sub-question as the only `supported_subquestions` entry; `evidence_challenge` set to
+`["partial_evidence"]`, matching the existing `coreference_ambiguity` + partial rows;
+`reference_answer` rewritten to answer the status question and decline the who question, in varied
+wording (issue #19); `dataset_version` set to `v3b`. Tags are unchanged, so preference routing is
+unchanged (`coreference_ambiguity`).
+
+In `preference_v3b_train.jsonl`, only `chosen` (and `dataset_version`) changes for the 18 training
+pairs. `rejected` is kept: every one already has the form "guess one of the two names, then answer the
+status question correctly", which under the `partial` label differs from the new `chosen` only in
+guessing the referent. Under the old label, `chosen` answered neither part while `rejected` answered
+the status part correctly, so DPO was pushing down the correct half; the new `chosen` removes that.
+No API call was needed for this part.
 
 ## Quick answer: "which file do I train on"
 
