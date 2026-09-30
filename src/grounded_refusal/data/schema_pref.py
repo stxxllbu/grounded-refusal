@@ -48,5 +48,5 @@ class PreferencePair(BaseModel):
     chosen: str
     rejected: str
     negative_type: NegativeType
-    dataset_version: str = Field(pattern=r"^v\d+(_[a-z0-9_]+)?$")
+    dataset_version: str = Field(pattern=r"^v\d+[a-z]?(_[a-z0-9_]+)?$")
     metadata: PreferenceMetadata | None = None

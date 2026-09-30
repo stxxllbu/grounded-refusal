@@ -55,7 +55,7 @@ class QAExample(BaseModel):
     evidence_type: EvidenceType
     evidence_challenge: list[EvidenceChallengeTag] = Field(default_factory=list)
     split: Split
-    dataset_version: str = Field(pattern=r"^v\d+(_[a-z0-9_]+)?$")
+    dataset_version: str = Field(pattern=r"^v\d+[a-z]?(_[a-z0-9_]+)?$")
     question_decomposition: list[str] | None = None
     supported_subquestions: list[str] | None = None
     metadata: ExampleMetadata | None = None

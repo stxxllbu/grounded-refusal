@@ -1,7 +1,7 @@
 {
   "base_model": "Qwen/Qwen2.5-3B-Instruct",
   "sft_adapter": "checkpoints/20260927_150840_lora",
-  "trained_on": "data/preference_v3_train.jsonl",
+  "trained_on": "data/preference_v3a_train.jsonl",
   "num_rows": 672,
   "num_epochs": 3,
   "beta": 0.1,

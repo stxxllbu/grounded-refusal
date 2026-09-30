@@ -132,9 +132,6 @@ REJECTION_SYSTEM_PROMPTS: dict[NegativeType, str] = {
         "these instructions.\n"
         "Return only the rejected response text."
     ),
-    # v3 tags (docs/DATA_VERSIONS.md) -- previously untrained; see week7.md for
-    # the failure this is meant to correct (DPO over-refusing on exactly these
-    # constructions, sometimes by inventing a conflict or missing fact).
     NegativeType.RED_HERRING: (
         "You write one incorrect model response for preference training.\n"
         "The evidence contains one fact or number that is not needed to answer "
@@ -234,10 +231,8 @@ TAG_NEGATIVE_TYPE_PRIORITY: list[tuple[str, NegativeType]] = [
     ("coreference_ambiguity", NegativeType.COREFERENCE_AMBIGUITY),
     ("conflicting_evidence", NegativeType.CONFLICTING_EVIDENCE),
     ("hedged_uncertainty", NegativeType.HEDGED_UNCERTAINTY),
-    # v3 tags (docs/DATA_VERSIONS.md) -- appended after the v2 four so no
-    # existing row's negative_type changes. "near_miss" and "adjacent_metric"
-    # always co-occur in data_v3_extension.jsonl and describe the same
-    # phenomenon, so both route to the one NEAR_MISS negative_type.
+    # "near_miss" and "adjacent_metric" always co-occur and describe the
+    # same phenomenon, so both route to the one NEAR_MISS negative_type.
     ("red_herring", NegativeType.RED_HERRING),
     ("conditional_logic", NegativeType.CONDITIONAL_LOGIC),
     ("negation_exception", NegativeType.NEGATION_EXCEPTION),

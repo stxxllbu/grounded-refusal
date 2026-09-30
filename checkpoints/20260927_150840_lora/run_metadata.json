@@ -1,6 +1,6 @@
 {
   "base_model": "Qwen/Qwen2.5-3B-Instruct",
-  "trained_on": "data/data_v3_train.jsonl",
+  "trained_on": "data/data_v3a_train.jsonl",
   "num_rows": 672,
   "num_epochs": 3,
   "lora_r": 16,
