@@ -1,4 +1,4 @@
-# Data versions: v1, v2, v3a
+# Data versions: v1, v2, v3a, v3b
 
 What each `dataset_version` means, which files belong to it, and why the next one exists. Written
 because by the time `v3a` showed up, the answer was scattered across `README.md`,
@@ -91,6 +91,39 @@ rows with a resolvable pronoun labeled `unanswerable`), [issue #18](https://gith
 (23 `coreference_ambiguity` + `hedged_uncertainty` rows whose second sub-question is answerable, so
 `unanswerable` should be `partial`), and [issue #19](https://github.com/stxxllbu/grounded-refusal/issues/19)
 (96 of 101 `coreference_ambiguity` reference answers share one opening template).
+
+### v3b — label and data fixes (in progress)
+
+`v3b` collects fixes to training-relevant content inherited from `v2`. It is built in several parts;
+each part is listed here as it lands.
+
+| File | Rows | Role |
+|---|---:|---|
+| [`data/data_v3b_train.jsonl`](../data/data_v3b_train.jsonl) | 672 | `data_v3a_train.jsonl` with the fixes below applied |
+| [`data/data_v3b_heldout.jsonl`](../data/data_v3b_heldout.jsonl) | 120 | `data_v2_heldout.jsonl` with the fixes below applied; the dev set for `v3b`-trained models |
+
+`data_v2_heldout.jsonl` and `data_v2_pilot.jsonl` stay unchanged, so every number already reported
+against them still matches its file.
+
+**Part 1: [issue #15](https://github.com/stxxllbu/grounded-refusal/issues/15).** Three
+`coreference_ambiguity` rows whose pronoun continues the previous sentence's subject are relabeled
+`unanswerable` → `answerable`:
+
+| id | File | Answer |
+|---|---|---|
+| `ex_0133` | `data_v3b_heldout.jsonl` | Northwood Capital |
+| `ex_0135` | `data_v3b_heldout.jsonl` | the prototype |
+| `ex_0157` | `data_v3b_train.jsonl` | Grace Whitfield |
+
+For each: `reference_answer` rewritten to answer directly (in varied wording, not the
+`coreference_ambiguity` template from issue #19), the `coreference_ambiguity` tag removed, and
+`dataset_version` set to `v3b`. Removing the tag matters for preference generation:
+`build_preference.py` routes by tag first, and with the tag in place `ex_0157` would get a
+`coreference_ambiguity` rejected answer (name one entity), which is now the correct answer. Without
+the tag it routes to `over_refusal`.
+
+**Not done yet:** `preference_v3b_train.jsonl`. `pref_0157` needs a regenerated `rejected`; this is
+deferred until the other `v3b` parts land so all affected pairs are generated in one run.
 
 ## Quick answer: "which file do I train on"
 
