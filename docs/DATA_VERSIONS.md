@@ -1,4 +1,4 @@
-# Data versions: v1, v2, v3a, v3b
+# Data versions: v1, v2, v3a, v3b, v3c
 
 What each `dataset_version` means, which files belong to it, and why the next one exists. Written
 because by the time `v3a` showed up, the answer was scattered across `README.md`,
@@ -55,6 +55,8 @@ exact snapshot it was trained on:
 - **`v3a`** gives the nine tags described above real training exposure.
 - **`v3b`** corrects `coreference_ambiguity` labels that `v2` got wrong, in both the training data
   and the dev set.
+- **`v3c`** is a control for `v3b`: the same labels, with 18 of the corrected training answers
+  rewritten in the wording the other `coreference_ambiguity` answers use.
 
 ### v3a — the nine-tag extension
 
@@ -206,12 +208,79 @@ used for scoring change.
 **Not in v3b.** Issue #19 is not addressed here. It concerns the wording of 243 training answers
 across three tags, and it is left for a later snapshot.
 
+### v3c — a wording control for v3b
+
+`v3c` changes the wording of 18 training answers and nothing else. It exists to separate two changes
+that `v3b` made at the same time.
+
+**The problem.** For the 18 training rows that `v3b` relabeled from `unanswerable` to `partial`
+(the training share of `ex_0572` to `ex_0594`), `v3b` changed two things in one step:
+
+- The content of the answer. The `v3a` answer declined both parts of the question. The `v3b` answer
+  declines the "who" part and answers the status part.
+- The wording of the answer. The `v3a` answer used the opening shared by almost every
+  `coreference_ambiguity` answer, `'She' follows a mention of both A and B`. The `v3b` answer for
+  each row was written in its own wording.
+
+A model trained on `v3b` can therefore differ from one trained on `v3a` on these rows because of
+either change, and the two cannot be told apart.
+
+**The fix.** `v3c` keeps the `v3b` labels and content and returns the wording to the shared form.
+The 13 `coreference_ambiguity` rows that were already `partial` before `v3b` use this form:
+
+```text
+'She' follows a mention of both A and B, so I can't say who <did the thing>. <The status>, however, <is such>.
+```
+
+The 18 rows now follow it too. For `ex_0573`:
+
+| Version | Label | `reference_answer` |
+|---|---|---|
+| `v3a` | `unanswerable` | 'She' follows a mention of both Dana Okafor and Priya Iyer, and since the recommendations are also described as informal and not adopted, there's neither a way to tell which consultant is meant nor a formal decision to report. |
+| `v3b` | `partial` | Nothing has been formally adopted. As for who recommended against the merger, the passage names both Dana Okafor and Priya Iyer and doesn't say which one "she" is. |
+| `v3c` | `partial` | 'She' follows a mention of both Dana Okafor and Priya Iyer, so I can't say who recommended against the merger. Nothing, however, has been formally adopted. |
+
+The opening of each new answer, with its pronoun and names, is taken from that row's `v3a` answer.
+The status sentence restates the fact the `v3b` answer gives, in the evidence's own words. The 18
+answers were written by hand, with no API call.
+
+This gives two comparisons that each change one thing. `v3b` and `v3c` differ only in the wording of
+these 18 answers. `v3a` and `v3c` differ in the label corrections, with the wording held to the
+shared form.
+
+**Files.**
+
+| File | Rows | Role |
+|---|---:|---|
+| [`data/data_v3c_train.jsonl`](../data/data_v3c_train.jsonl) | 672 | `data_v3b_train.jsonl` with 18 `reference_answer` values rewritten |
+| [`data/preference_v3c_train.jsonl`](../data/preference_v3c_train.jsonl) | 672 | `preference_v3b_train.jsonl` with the 18 matching `chosen` values updated |
+
+The 18 rows are `ex_0573` to `ex_0580`, `ex_0582` to `ex_0585`, `ex_0588`, `ex_0589`, and `ex_0591`
+to `ex_0594`. They and their pairs get `dataset_version: v3c`. The label counts are the same as
+`data_v3b_train.jsonl`.
+
+**What stays unchanged.** `ex_0157`, the one training row `v3b` relabeled `answerable`, keeps its
+`v3b` answer; the shared wording is a refusal, so it has no form for a row that should be answered.
+The `rejected` answers and every `negative_type` are the same as in `v3b`. There is no `v3c`
+held-out file: a `v3c`-trained model is evaluated on `data_v3b_heldout.jsonl`, whose labels already
+match, and whose answer wording is never used in scoring.
+
+**Checks.** Both files validate against their schemas. Compared field by field with the `v3b` files,
+only `reference_answer` (or `chosen`) and `dataset_version` change, and only in the 18 rows and 18
+pairs listed. Every `chosen` equals its row's `reference_answer`, all 672 `prompt` values rebuild
+from their rows, and every `negative_type` matches what `build_preference.py` would choose today.
+
+**A known cost.** `v3c` raises the number of training answers that follow this one form from 13 to
+31, which is the concentration issue #19 describes. `v3c` is a control for reading the `v3b` result,
+not a replacement for `v3b` as the current recipe.
+
 ## Quick answer: "which file do I use"
 
 | Task | File |
 |---|---|
 | Train the current recipe | `data_v3b_train.jsonl` (SFT) / `preference_v3b_train.jsonl` (DPO) |
 | Evaluate a `v3b`-trained model | `data_v3b_heldout.jsonl` |
+| Run the `v3c` wording control | `data_v3c_train.jsonl` (SFT) / `preference_v3c_train.jsonl` (DPO), evaluated on `data_v3b_heldout.jsonl` |
 | Reproduce the `v3a` checkpoints | `data_v3a_train.jsonl` (SFT) / `preference_v3a_train.jsonl` (DPO) |
 | Reproduce the `v2` checkpoints | `data_v2_train.jsonl` (SFT) / `preference_v2_train.jsonl` (DPO) |
 | Evaluate `v2`/`v3a` checkpoints as originally reported | `data_v2_heldout.jsonl` |
