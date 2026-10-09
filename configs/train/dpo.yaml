@@ -30,4 +30,4 @@ training:
   save_strategy: "no"
   bf16: true
   max_length: 512
-  seed: 42
+  # seed is not set here: pass --seed to train_dpo.py (default 42)

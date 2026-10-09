@@ -18,4 +18,4 @@ training:
   save_strategy: "no"             # short run — just save the final adapter, no mid-run checkpoints
   bf16: true
   max_length: 512
-  seed: 42
+  # seed is not set here: pass --seed to train_sft.py (default 42)

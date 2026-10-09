@@ -50,6 +50,7 @@ def write_checkpoint_metadata(
     data_path: Path,
     num_rows: int,
     num_epochs: float,
+    seed: int,
     lora_config: LoraConfig,
     train_config_path: Path,
 ) -> None:
@@ -63,6 +64,7 @@ def write_checkpoint_metadata(
         "trained_on": str(data_path),
         "num_rows": num_rows,
         "num_epochs": num_epochs,
+        "seed": seed,
         "lora_r": lora_config.r,
         "lora_target_modules": list(lora_config.target_modules),
         "train_config": str(train_config_path),
@@ -110,6 +112,7 @@ def train_sft_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prompt-config", type=Path, default=Path("configs/prompts/default.yaml"))
     parser.add_argument("--model-config", type=Path, default=Path("configs/models/base.yaml"))
     parser.add_argument("--train-config", type=Path, default=Path("configs/train/lora.yaml"))
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for LoRA initialization and training data order")
     args = parser.parse_args(argv)
 
     examples, errors = validate_qa_jsonl_against_schema(args.data)
@@ -134,6 +137,7 @@ def train_sft_main(argv: list[str] | None = None) -> int:
 
     train_cfg = load_yaml_config(args.train_config)
     train_cfg["training"]["output_dir"] = timestamped_output_dir(train_cfg["training"]["output_dir"])
+    train_cfg["training"]["seed"] = args.seed
     lora_config = LoraConfig(**train_cfg["lora"])
     sft_config = SFTConfig(**train_cfg["training"])
 
@@ -155,6 +159,7 @@ def train_sft_main(argv: list[str] | None = None) -> int:
         data_path=args.data,
         num_rows=len(rows),
         num_epochs=sft_config.num_train_epochs,
+        seed=sft_config.seed,
         lora_config=lora_config,
         train_config_path=args.train_config,
     )
