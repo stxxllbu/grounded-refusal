@@ -74,4 +74,6 @@ class EvalResult(BaseModel):
     rationale: str
     abstention_outcome: AbstentionOutcome | None = None
     partial_outcome: PartialOutcome | None = None
+    # None when the row was not given to the correctness judge.
+    is_correct: bool | None = None
     model_name: str | None = None
