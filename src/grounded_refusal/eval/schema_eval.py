@@ -33,6 +33,22 @@ class JudgeOutput(BaseModel):
     rationale: str
 
 
+class CorrectnessOutput(BaseModel):
+    """Raw correctness-judge output for one (question, reference answer, model_output) triple.
+
+    The judge returns one of three values, but only match against the other
+    two is used. It does not tell a wrong answer from no answer reliably;
+    whether a response answered at all comes from JudgeOutput.predicted_behavior.
+    """
+
+    rationale: str
+    answer_match: Literal["match", "mismatch", "no_answer"]
+
+    @property
+    def is_correct(self) -> bool:
+        return self.answer_match == "match"
+
+
 # Abstention confusion matrix outcome (answerable/unanswerable rows only).
 # None when answerability == partial -- those rows never enter this matrix.
 AbstentionOutcome = Literal[
@@ -58,4 +74,6 @@ class EvalResult(BaseModel):
     rationale: str
     abstention_outcome: AbstentionOutcome | None = None
     partial_outcome: PartialOutcome | None = None
+    # None when the row was not given to the correctness judge.
+    is_correct: bool | None = None
     model_name: str | None = None

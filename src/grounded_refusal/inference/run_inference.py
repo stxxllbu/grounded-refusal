@@ -50,7 +50,9 @@ def infer_main(argv: list[str] | None = None) -> int:
         row = {
             "id": ex.id,
             "prompt": prompt,
+            "question": ex.question,
             "reference_answer": ex.reference_answer,
+            "supported_subquestions": ex.supported_subquestions,
             "answerability": ex.answerability.value,
             "evidence_type": ex.evidence_type.value,
             "evidence_challenge": [c.value for c in ex.evidence_challenge],
