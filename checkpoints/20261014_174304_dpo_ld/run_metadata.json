@@ -1,0 +1,17 @@
+{
+  "base_model": "Qwen/Qwen2.5-3B-Instruct",
+  "sft_adapter": "checkpoints/20261009_171252_lora",
+  "trained_on": "data/preference_v3c_train.jsonl",
+  "num_rows": 672,
+  "num_epochs": 3,
+  "seed": 44,
+  "beta": 0.1,
+  "lora_r": 16,
+  "lora_target_modules": [
+    "q_proj",
+    "v_proj"
+  ],
+  "train_config": "configs/train/dpo_ld.yaml",
+  "git_commit": "f04cea6c00efeca5ffc5a98ce1fd88fe33988695",
+  "created_at": "2026-10-14T17:51:42"
+}

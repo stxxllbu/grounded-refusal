@@ -1,0 +1,28 @@
+# LoRA DPO config with length desensitization (LD-DPO). Identical to dpo.yaml
+# except for ld_alpha: in each pair, the log-probabilities of the tokens of the
+# longer response beyond the length of the shorter one are weighted by ld_alpha
+# before entering the DPO loss. ld_alpha 1.0 is standard DPO; 0.0 drops those
+# tokens. The ablation tests whether removing DPO's length sensitivity removes
+# the sentence DPO models add after an answer.
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["q_proj", "v_proj"]
+  task_type: CAUSAL_LM
+
+training:
+  output_dir: checkpoints/dpo_ld  # train_dpo.py prefixes a run timestamp onto this
+  beta: 0.1                    # trl default; not yet tuned for this data/model
+  loss_type: sigmoid           # the original DPO formulation; ipo/other variants are future ablation work
+  ld_alpha: 0.5                # weight on the tokens beyond the shorter response's length; 1.0 = standard DPO
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16  # effective batch size 16, matching lora.yaml's SFT run
+  gradient_checkpointing: true
+  learning_rate: 5.0e-6            # DPO typically wants a lower LR than SFT's 2e-4
+  logging_steps: 2
+  save_strategy: "no"
+  bf16: true
+  max_length: 512
+  # seed is not set here: pass --seed to train_dpo.py (default 42)
