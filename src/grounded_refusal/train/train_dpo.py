@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from datasets import Dataset
 from peft import LoraConfig, PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import DPOConfig, DPOTrainer
+from trl.trainer.dpo_trainer import DataCollatorForPreference
 
 from grounded_refusal.data.schema_pref import PreferencePair
 from grounded_refusal.train.train_sft import git_commit_hash, timestamped_output_dir
@@ -55,6 +57,30 @@ def build_dpo_rows(pairs: list[PreferencePair]) -> list[dict]:
     return rows
 
 
+@dataclass
+class MaskRejectedEndCollator(DataCollatorForPreference):
+    """trl's preference collator, with the end-of-turn token of each rejected response left out of the loss.
+
+    DPOTrainer sums a response's token log-probabilities over the positions where
+    completion_mask is 1, for the trained model and the reference alike. Setting it
+    to 0 at the rejected response's end-of-turn token removes that token from both
+    sums, so the loss cannot lower a rejected response by lowering its end-of-turn
+    token. Chosen responses are unchanged. The collator stacks the chosen sequences
+    first and the rejected ones after them, so rejected example i is row
+    len(examples) + i.
+    """
+
+    end_token_id: int | None = None
+
+    def torch_call(self, examples: list[dict]) -> dict:
+        output = super().torch_call(examples)
+        for i, example in enumerate(examples):
+            rejected_ids = example["rejected_ids"]
+            end_index = len(rejected_ids) - 1 - rejected_ids[::-1].index(self.end_token_id)
+            output["completion_mask"][len(examples) + i, len(example["prompt_ids"]) + end_index] = 0
+        return output
+
+
 def load_merged_sft_model(model_name: str, sft_adapter_path: str):
     """Base model + SFT LoRA, merged into plain weights.
 
@@ -78,6 +104,7 @@ def write_checkpoint_metadata(
     beta: float,
     lora_config: LoraConfig,
     train_config_path: Path,
+    mask_rejected_end: bool,
 ) -> None:
     metadata = {
         "base_model": base_model,
@@ -89,6 +116,7 @@ def write_checkpoint_metadata(
         "beta": beta,
         "lora_r": lora_config.r,
         "lora_target_modules": list(lora_config.target_modules),
+        "mask_rejected_end": mask_rejected_end,
         "train_config": str(train_config_path),
         "git_commit": git_commit_hash(),
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -118,12 +146,23 @@ def train_dpo_main(argv: list[str] | None = None) -> int:
     train_cfg = load_yaml_config(args.train_config)
     train_cfg["training"]["output_dir"] = timestamped_output_dir(train_cfg["training"]["output_dir"])
     train_cfg["training"]["seed"] = args.seed
+    mask_rejected_end = train_cfg.get("mask_rejected_end", False)
     lora_config = LoraConfig(**train_cfg["lora"])
     dpo_config = DPOConfig(**train_cfg["training"])
 
     model_cfg = load_yaml_config(args.model_config)
     model = load_merged_sft_model(model_cfg["model_name"], str(args.sft_adapter))
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["model_name"])
+
+    data_collator = None  # DPOTrainer builds its default DataCollatorForPreference
+    if mask_rejected_end:
+        data_collator = MaskRejectedEndCollator(
+            pad_token_id=tokenizer.pad_token_id,
+            max_length=dpo_config.max_length,
+            truncation_mode=dpo_config.truncation_mode,
+            pad_to_multiple_of=dpo_config.pad_to_multiple_of,
+            end_token_id=tokenizer.eos_token_id,
+        )
 
     # No ref_model: DPOTrainer uses the merged model with this new LoRA
     # disabled as the frozen reference (see module docstring).
@@ -133,6 +172,7 @@ def train_dpo_main(argv: list[str] | None = None) -> int:
         train_dataset=train_dataset,
         processing_class=tokenizer,
         peft_config=lora_config,
+        data_collator=data_collator,
     )
     try:
         trainer.train()
@@ -150,6 +190,7 @@ def train_dpo_main(argv: list[str] | None = None) -> int:
         beta=dpo_config.beta,
         lora_config=lora_config,
         train_config_path=args.train_config,
+        mask_rejected_end=mask_rejected_end,
     )
     print(f"Wrote LoRA DPO adapter to {dpo_config.output_dir}")
     return 0

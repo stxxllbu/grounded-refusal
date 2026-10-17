@@ -1,0 +1,30 @@
+# LoRA DPO config with the end-of-turn token of each rejected response left out
+# of the loss. Identical to dpo.yaml except for output_dir and mask_rejected_end:
+# train_dpo.py then trains with MaskRejectedEndCollator, which removes that one
+# token from the rejected response's log-probability, for the trained model and
+# the reference alike. Chosen responses are unchanged. The ablation tests whether
+# DPO stops lowering the probability of stopping once it cannot lower the
+# rejected responses' end-of-turn token.
+
+mask_rejected_end: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules: ["q_proj", "v_proj"]
+  task_type: CAUSAL_LM
+
+training:
+  output_dir: checkpoints/dpo_mask_rejected_end  # train_dpo.py prefixes a run timestamp onto this
+  beta: 0.1                    # trl default; not yet tuned for this data/model
+  loss_type: sigmoid           # the original DPO formulation; ipo/other variants are future ablation work
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16  # effective batch size 16, matching lora.yaml's SFT run
+  gradient_checkpointing: true
+  learning_rate: 5.0e-6            # DPO typically wants a lower LR than SFT's 2e-4
+  logging_steps: 2
+  save_strategy: "no"
+  bf16: true
+  max_length: 512
+  # seed is not set here: pass --seed to train_dpo.py (default 42)
